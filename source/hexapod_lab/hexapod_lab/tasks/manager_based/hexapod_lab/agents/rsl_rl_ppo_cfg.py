@@ -9,17 +9,30 @@ from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, R
 
 
 @configclass
-class PPORunnerCfg(RslRlOnPolicyRunnerCfg):
-    num_steps_per_env = 16
-    max_iterations = 150
+class HexapodFlatPPORunnerCfg(RslRlOnPolicyRunnerCfg):
+    """PPO for the hexapod flat-ground velocity task.
+
+    Network and algorithm settings are held identical to the ANYmal-C rough
+    baseline (logs/rsl_rl/anymal_c_rough/2026-07-20_21-07-37/params/agent.yaml)
+    so that any difference in training behaviour points at the environment
+    rather than the learner. PPO hyperparameters are insensitive to DOF count;
+    only the input layer width changes with 18 joints instead of 12.
+
+    The one deliberate change is the rollout length: the hexapod runs at 100 Hz
+    instead of 50 Hz, so 24 steps would cover half the wall-clock horizon the
+    baseline saw. 48 keeps it at ~0.5 s of experience per env per iteration.
+    """
+
+    num_steps_per_env = 48
+    max_iterations = 1500
     save_interval = 50
-    experiment_name = "cartpole_direct"
+    experiment_name = "hexapod_flat"
     policy = RslRlPpoActorCriticCfg(
         init_noise_std=1.0,
         actor_obs_normalization=False,
         critic_obs_normalization=False,
-        actor_hidden_dims=[32, 32],
-        critic_hidden_dims=[32, 32],
+        actor_hidden_dims=[512, 256, 128],
+        critic_hidden_dims=[512, 256, 128],
         activation="elu",
     )
     algorithm = RslRlPpoAlgorithmCfg(
