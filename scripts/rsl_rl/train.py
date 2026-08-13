@@ -104,6 +104,7 @@ from isaaclab_tasks.utils.hydra import hydra_task_config
 logger = logging.getLogger(__name__)
 
 import hexapod_lab.tasks  # noqa: F401
+from hexapod_lab.observability import training_session
 
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
@@ -216,8 +217,18 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)
     dump_yaml(os.path.join(log_dir, "params", "agent.yaml"), agent_cfg)
 
-    # run training
-    runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
+    # run training under the observability scaffold: VRAM sampling while it runs,
+    # reward-composition report when it finishes. Add tools by writing a Probe --
+    # see hexapod_lab/observability/ and docs/OBSERVABILITY.md.
+    with training_session(
+        log_dir=log_dir,
+        task=args_cli.task,
+        num_envs=env_cfg.scene.num_envs,
+        max_iterations=agent_cfg.max_iterations,
+        device=agent_cfg.device,
+        run_name=agent_cfg.run_name,
+    ):
+        runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
 
     print(f"Training time: {round(time.time() - start_time, 2)} seconds")
 
