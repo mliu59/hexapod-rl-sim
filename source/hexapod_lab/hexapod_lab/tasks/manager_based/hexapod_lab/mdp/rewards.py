@@ -44,6 +44,26 @@ def base_height_target_exp(
     return torch.exp(-torch.square(height - target_height) / std**2)
 
 
+def base_height_command_exp(
+    env: ManagerBasedRLEnv,
+    command_name: str,
+    std: float,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Reward tracking a *commanded* base height (exp kernel).
+
+    The goal-conditioned counterpart of ``base_height_target_exp``: the target
+    comes from the command manager instead of a config constant, so the same
+    policy serves any setpoint inside the trained range.
+
+    Assumes flat ground at the env origin height.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    target = env.command_manager.get_command(command_name)[:, 0]
+    height = asset.data.root_pos_w[:, 2] - env.scene.env_origins[:, 2]
+    return torch.exp(-torch.square(height - target) / std**2)
+
+
 def base_lin_vel_xy_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Penalize horizontal base velocity (for stand-still tasks).
 

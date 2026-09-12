@@ -64,3 +64,15 @@ class SpidertronStandPPORunnerCfg(HexapodFlatPPORunnerCfg):
     max_iterations = 300
     save_interval = 50
     experiment_name = "spidertron_stand"
+
+
+@configclass
+class SpidertronHeightTrackPPORunnerCfg(SpidertronStandPPORunnerCfg):
+    """PPO for the height-setpoint tracking task.
+
+    Harder than standing (the policy must learn transitions between poses),
+    so more iterations; everything else inherited.
+    """
+
+    max_iterations = 500
+    experiment_name = "spidertron_height_track"
