@@ -19,6 +19,8 @@ other poses.
 """
 
 from isaaclab.managers import ObservationTermCfg as ObsTerm
+from isaaclab.managers import RewardTermCfg as RewTerm
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils import configclass
 
 from . import mdp
@@ -46,13 +48,43 @@ class ObservationsCfg(BaseObservationsCfg):
     @configclass
     class PolicyCfg(BaseObservationsCfg.PolicyCfg):
         height_command = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_height"})
+        # the servo-loop input: signed target-minus-current error, so the policy
+        # does not have to infer its own height from leg geometry
+        height_error = ObsTerm(func=mdp.height_setpoint_error, params={"command_name": "base_height"})
 
     policy: PolicyCfg = PolicyCfg()
 
 
 @configclass
 class HeightTrackRewardsCfg(StandRewardsCfg):
-    """Stand rewards with the height target coming from the command manager."""
+    """Stand rewards with the height target coming from the command manager.
+
+    Extra shaping from watching v1 rollouts (docs/SPIDERTRON_TASKS.md): the
+    first policy balanced with feet in the air, drifted in yaw, let feet wander
+    from the hexagonal planform, and jittered. Each gets a dedicated term.
+    """
+
+    # all six feet planted, judged by the sensor's binary contact state (the
+    # force_threshold lives on the sensor cfg, not here)
+    feet_off_ground = RewTerm(
+        func=mdp.feet_off_ground,
+        weight=-0.5,
+        params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_tibia")},
+    )
+    # hold heading (yaw-rate damping -- absolute yaw is unobservable to the policy)
+    yaw_rate_l2 = RewTerm(func=mdp.base_yaw_rate_l2, weight=-0.5)
+    # orientation jitter: high-frequency wobble has small velocity but large
+    # acceleration, so ang_vel terms barely see it
+    base_ang_acc_l2 = RewTerm(
+        func=mdp.base_ang_acc_l2,
+        weight=-2.5e-4,
+        params={"asset_cfg": SceneEntityCfg("robot", body_names="base_link")},
+    )
+    # NOTE: v2 also pinned each foot to a nominal hexagon vertex
+    # (mdp.feet_position_xy_l2, weight -30). Removed in v3: cosmetic, and it was
+    # the largest converged penalty -- the policy paid up to 26 mm of height
+    # error at the range extremes to satisfy it. Feet placement is now free
+    # apart from contact and joint-limit terms.
 
     def __post_init__(self):
         # same exp kernel and weight; only the target source changes

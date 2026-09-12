@@ -44,6 +44,12 @@ from . import mdp
 # height reference this instead of re-deriving it.
 NOMINAL_HEIGHT = 0.2745  # m
 
+# Foot contact sphere sits 0.377 m along the tibia +x axis (URDF collision
+# geometry); at the standing pose the feet form a hexagon of this radius
+# around the base origin. Keep in sync with the CAD emitter.
+FOOT_TIP_OFFSET = 0.377  # m
+FOOT_RADIUS = 0.424  # m
+
 
 ##
 # Scene
@@ -69,8 +75,17 @@ class SpidertronSceneCfg(InteractiveSceneCfg):
 
     robot = SPIDERTRON_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
-    # every body, so undesired-contact terms can name femurs and the chassis
-    contact_forces = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True)
+    # every body, so undesired-contact terms can name femurs and the chassis.
+    # Foot-ground contact is treated as BINARY: force_threshold is the single
+    # place the boolean is derived (sensor's contact/air-time state machine);
+    # task terms read contact state, never force magnitudes -- matching the
+    # contact-switch feet a real build would have.
+    contact_forces = ContactSensorCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/.*",
+        history_length=3,
+        track_air_time=True,
+        force_threshold=1.0,
+    )
 
     light = AssetBaseCfg(
         prim_path="/World/light",

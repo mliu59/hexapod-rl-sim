@@ -65,7 +65,9 @@ import os
 import time
 
 import gymnasium as gym
+import hexapod_lab.tasks  # noqa: F401
 import torch
+from hexapod_lab.viz import base_frame_marker
 from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
 from isaaclab.envs import (
@@ -91,8 +93,6 @@ from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_che
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import get_checkpoint_path
 from isaaclab_tasks.utils.hydra import hydra_task_config
-
-import hexapod_lab.tasks  # noqa: F401
 
 
 @hydra_task_config(args_cli.task, args_cli.agent)
@@ -198,6 +198,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     dt = env.unwrapped.step_dt
 
+    # base-frame axis triad in every env, so recordings show orientation
+    update_frame_marker = base_frame_marker(env.unwrapped)
+
     # reset environment
     obs = env.get_observations()
     timestep = 0
@@ -210,6 +213,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             actions = policy(obs)
             # env stepping
             obs, _, dones, _ = env.step(actions)
+            update_frame_marker()
             # reset recurrent states for episodes that have terminated
             if version.parse(installed_version) >= version.parse("4.0.0"):
                 policy.reset(dones)

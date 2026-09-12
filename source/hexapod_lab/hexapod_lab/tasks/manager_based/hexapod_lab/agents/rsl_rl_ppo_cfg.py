@@ -71,8 +71,22 @@ class SpidertronHeightTrackPPORunnerCfg(SpidertronStandPPORunnerCfg):
     """PPO for the height-setpoint tracking task.
 
     Harder than standing (the policy must learn transitions between poses),
-    so more iterations; everything else inherited.
+    so more iterations; everything else inherited. Raised 500 -> 1500 for v2:
+    the added contact/planform/jitter constraints conflict with pure height
+    speed and need longer to trade off well.
     """
 
-    max_iterations = 500
+    max_iterations = 1500
     experiment_name = "spidertron_height_track"
+
+
+@configclass
+class SpidertronWalkPPORunnerCfg(SpidertronStandPPORunnerCfg):
+    """PPO for the walk task (direction+speed+height, mode-gated rewards).
+
+    The hardest task in the family so far -- gait discovery plus three tracking
+    channels plus mode transitions -- hence the longest schedule.
+    """
+
+    max_iterations = 2500
+    experiment_name = "spidertron_walk"

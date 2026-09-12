@@ -24,6 +24,19 @@ args_cli.enable_cameras = True
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
+# Deterministic rendering for the capture path (same block as check_collapse.py):
+# without waitIdle/syncLoads the annotator readback races frame completion and
+# alternate frames come back as uniform clear-colour buffers.
+import carb
+
+_settings = carb.settings.get_settings()
+_settings.set("/app/asyncRendering", False)
+_settings.set("/app/asyncRenderingLowLatency", False)
+_settings.set("/app/hydraEngine/waitIdle", True)
+_settings.set("/rtx/materialDb/syncLoads", True)
+_settings.set("/rtx/hydra/materialSyncLoads", True)
+_settings.set("/omni.kit.plugin/syncUsdLoads", True)
+
 import importlib.metadata as metadata
 import os
 from pathlib import Path
@@ -31,6 +44,7 @@ from pathlib import Path
 import gymnasium as gym
 import hexapod_lab.tasks  # noqa: F401
 import torch
+from hexapod_lab.viz import base_frame_marker
 from rsl_rl.runners import OnPolicyRunner
 
 from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
@@ -74,6 +88,7 @@ def main() -> None:
 
     command_term = env.unwrapped.command_manager.get_term("base_height")
     robot = env.unwrapped.scene["robot"]
+    update_frame_marker = base_frame_marker(env.unwrapped)
     origin_z = env.unwrapped.scene.env_origins[0, 2]
     dt = env.unwrapped.step_dt
     steps_per_hold = int(args_cli.hold_s / dt)
@@ -87,6 +102,7 @@ def main() -> None:
             command_term.height_command[:, 0] = target
             with torch.inference_mode():
                 obs, _, _, _ = env.step(policy(obs))
+            update_frame_marker()
             error = abs(float(robot.data.root_pos_w[0, 2] - origin_z) - target)
             errors.append(error)
             if settle_step is None and error < SETTLE_TOL:

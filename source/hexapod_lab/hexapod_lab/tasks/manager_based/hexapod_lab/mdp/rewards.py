@@ -12,7 +12,7 @@ import torch
 from isaaclab.assets import Articulation
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import ContactSensor
-from isaaclab.utils.math import quat_apply, wrap_to_pi
+from isaaclab.utils.math import quat_apply, quat_apply_inverse, wrap_to_pi
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -64,6 +64,131 @@ def base_height_command_exp(
     return torch.exp(-torch.square(height - target) / std**2)
 
 
+def track_forward_vel_hgated_exp(
+    env: ManagerBasedRLEnv,
+    std: float,
+    command_name: str,
+    height_command_name: str,
+    nominal_height: float,
+    height_std: float,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Track the commanded forward (base-x) speed, attenuated away from nominal height.
+
+    Strict-facing walking: only the base-frame forward velocity is commanded
+    (the command's own cos-projection already zeroes it while turning in
+    place). The attenuation factor ``exp(-((h_cmd - nominal)/height_std)^2)``
+    relaxes the speed demand when the commanded height is far from nominal, so
+    at crouched/stilted extremes the policy prioritizes holding height over
+    hitting speed instead of trading one for the other.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    cmd = env.command_manager.get_command(command_name)
+    vel_error = torch.square(cmd[:, 0] - asset.data.root_lin_vel_b[:, 0])
+    h_cmd = env.command_manager.get_command(height_command_name)[:, 0]
+    attenuation = torch.exp(-torch.square((h_cmd - nominal_height) / height_std))
+    return torch.exp(-vel_error / std**2) * attenuation
+
+
+def track_heading_cos(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
+    """Reward facing the commanded direction: ``(1 + cos(err)) / 2``.
+
+    Closes the v1 walk loophole (refusing to turn zeroed the speed demand) --
+    and, after walk v2, does it with a kernel that has gradient EVERYWHERE on
+    the circle. v2 used exp(-err^2/0.5^2), which is ~5e-5 and numerically flat
+    at the ~90 deg errors the policy actually had: raising its weight
+    multiplied a zero gradient, and heading never trained. The cosine shape
+    pays 1 aligned, 0 reversed, with useful slope at every error in between.
+    Idle envs (heading pinned) earn it by holding pose, which is desired.
+    """
+    cmd = env.command_manager.get_command(command_name)
+    # cmd[:, 2] is cos(heading error) already
+    return 0.5 * (1.0 + cmd[:, 2])
+
+
+def track_yaw_rate_exp(env: ManagerBasedRLEnv, std: float, command_name: str) -> torch.Tensor:
+    """Track the heading controller's yaw-rate command (command dim 1, exp kernel)."""
+    asset: Articulation = env.scene["robot"]
+    cmd = env.command_manager.get_command(command_name)
+    return torch.exp(-torch.square(cmd[:, 1] - asset.data.root_ang_vel_b[:, 2]) / std**2)
+
+
+def base_lin_vel_y_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    """Penalize lateral base velocity (strict facing: strafing is never commanded)."""
+    asset: Articulation = env.scene[asset_cfg.name]
+    return torch.square(asset.data.root_lin_vel_b[:, 1])
+
+
+def hip_height_variance(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Penalize unequal hip (coxa-link) heights above the ground.
+
+    The torso-flatness measure requested for the walk task: all six leg bases at
+    the same height <=> level torso. On flat ground this overlaps
+    ``flat_orientation_l2``; it is kept in this form because on rough terrain
+    (M3) "hips level with the terrain" and "gravity-level" stop being the same
+    thing, and this is the one that generalizes.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    hip_z = asset.data.body_pos_w[:, asset_cfg.body_ids, 2] - env.scene.env_origins[:, 2].unsqueeze(1)
+    return torch.var(hip_z, dim=1)
+
+
+def foot_slip(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Penalize horizontal foot velocity while in (binary) contact.
+
+    Without this the policy discovers ice-skating: feet report planted while
+    sliding, which tracks velocity on flat ground and dies on anything real.
+    Both cfgs must name the same bodies (``.*_tibia``) so the index orders match.
+    """
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    in_contact = contact_sensor.data.current_contact_time[:, sensor_cfg.body_ids] > 0.0
+    asset: Articulation = env.scene[asset_cfg.name]
+    foot_speed_xy = torch.norm(asset.data.body_lin_vel_w[:, asset_cfg.body_ids, :2], dim=-1)
+    return torch.sum(foot_speed_xy * in_contact, dim=1)
+
+
+def feet_off_ground_idle(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, command_name: str) -> torch.Tensor:
+    """`feet_off_ground`, gated to idle envs (commanded neither moving nor turning)."""
+    idle = ~env.command_manager.get_term(command_name).is_active
+    return feet_off_ground(env, sensor_cfg) * idle
+
+
+def feet_air_time_target_active(
+    env: ManagerBasedRLEnv,
+    command_name: str,
+    sensor_cfg: SceneEntityCfg,
+    target_time: float,
+    min_air_time: float = 0.1,
+) -> torch.Tensor:
+    """Air-time reward gated on the motion command's is_active flag, with a
+    penalty floor for micro-hops.
+
+    Shape: ``clamp(air_time - min_air_time, max=target - min_air_time)`` at
+    each touchdown. The earlier symmetric peak-at-target shape still paid tiny
+    hops positively, and hops touch down 3-4x as often as real swings -- per
+    unit time, shuffling earned nearly as much as stepping, which is exactly
+    the gait the walk-v1/v2 rollouts showed. With the floor, a swing shorter
+    than ``min_air_time`` COSTS reward, and its high touchdown frequency
+    multiplies the cost; a full swing pays the cap.
+
+    Gate: the command term's moving-or-turning boolean (turn-in-place needs
+    stepping too, and this task's command dim 0 is zero while turning).
+    """
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    first_contact = contact_sensor.compute_first_contact(env.step_dt)[:, sensor_cfg.body_ids]
+    last_air_time = contact_sensor.data.last_air_time[:, sensor_cfg.body_ids]
+    per_foot = torch.clamp(last_air_time - min_air_time, max=target_time - min_air_time) * first_contact
+    return torch.sum(per_foot, dim=1) * env.command_manager.get_term(command_name).is_active
+
+
+def air_time_variance_active(
+    env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, command_name: str
+) -> torch.Tensor:
+    """`air_time_variance`, gated on the motion command's is_active flag (stale
+    swing statistics would otherwise be penalized while standing)."""
+    return air_time_variance(env, sensor_cfg) * env.command_manager.get_term(command_name).is_active
+
+
 def base_lin_vel_xy_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Penalize horizontal base velocity (for stand-still tasks).
 
@@ -84,13 +209,94 @@ def joint_pos_target_l2(env: ManagerBasedRLEnv, target: float, asset_cfg: SceneE
     return torch.sum(torch.square(joint_pos - target), dim=1)
 
 
-def _foot_positions_w(asset: Articulation, body_ids) -> torch.Tensor:
+def _foot_positions_w(asset: Articulation, body_ids, tip_offset: float = TIBIA_TIP_OFFSET) -> torch.Tensor:
     """World positions of the tibia-tip contact spheres. Shape is (num_envs, num_feet, 3)."""
     pos_w = asset.data.body_pos_w[:, body_ids]
     quat_w = asset.data.body_quat_w[:, body_ids]
     offset = torch.zeros_like(pos_w)
-    offset[..., 0] = TIBIA_TIP_OFFSET
+    offset[..., 0] = tip_offset
     return pos_w + quat_apply(quat_w, offset)
+
+
+def feet_off_ground(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Count of feet not in contact with the ground (binary contact detection).
+
+    For stationary tasks (stand, height-track) every foot should be planted the
+    whole time; a policy that balances on 3-4 legs and waves the rest satisfies
+    the base-height reward just as well.
+
+    Contact is a per-foot BOOLEAN from the sensor's contact-time state machine
+    (``current_contact_time > 0``, driven by the sensor cfg's single
+    ``force_threshold``) -- task logic never sees force magnitudes, matching a
+    real robot's contact-switch feet.
+    """
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    in_contact = contact_sensor.data.current_contact_time[:, sensor_cfg.body_ids] > 0.0
+    return torch.sum(~in_contact, dim=1).float()
+
+
+def base_yaw_rate_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    """Penalize yaw angular velocity (for tasks that should hold heading).
+
+    Note the policy cannot observe absolute yaw (projected gravity is
+    yaw-blind and there is no compass term), so an absolute-heading penalty
+    would be unlearnable; damping the yaw *rate* is the observable equivalent
+    and pins whatever heading the episode started with.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    return torch.square(asset.data.root_ang_vel_b[:, 2])
+
+
+def base_ang_acc_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    """Penalize base angular acceleration (orientation jitter).
+
+    ``ang_vel_xy_l2`` penalizes sustained tilt rates but is nearly blind to
+    high-frequency oscillation, whose velocity amplitude is small while its
+    acceleration is large. This is the base-frame analogue of ``joint_acc_l2``.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    return torch.sum(torch.square(asset.data.body_ang_acc_w[:, asset_cfg.body_ids].squeeze(1)), dim=-1)
+
+
+# Leg mount directions (rad, base frame, from the URDF coxa joint origins):
+# legs are radial on a perfect hexagon, so each foot's nominal planform
+# position is radius * (cos, sin) of its mount angle.
+_LEG_MOUNT_ANGLES = {
+    "LF": 0.523599,
+    "LM": 1.570796,
+    "LR": 2.617994,
+    "RR": 3.665191,
+    "RM": 4.712389,
+    "RF": 5.759587,
+}
+
+
+def feet_position_xy_l2(
+    env: ManagerBasedRLEnv,
+    asset_cfg: SceneEntityCfg,
+    radius: float,
+    tip_offset: float,
+) -> torch.Tensor:
+    """Penalize feet drifting from their nominal planform positions.
+
+    Nominal is equal hexagonal spacing at ``radius`` from the base origin
+    (evaluated in the base frame, so it turns with the robot). Constrains both
+    the radial drift (feet sliding out or in) and the angular spread the other
+    terms leave free.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    cache_key = "_nominal_foot_xy"
+    nominal = getattr(env, cache_key, None)
+    if nominal is None:
+        names = [asset.body_names[i] for i in asset_cfg.body_ids]
+        angles = torch.tensor([_LEG_MOUNT_ANGLES[name[:2]] for name in names], device=env.device)
+        nominal = radius * torch.stack([torch.cos(angles), torch.sin(angles)], dim=-1)
+        setattr(env, cache_key, nominal)
+    foot_pos_w = _foot_positions_w(asset, asset_cfg.body_ids, tip_offset)
+    rel_w = foot_pos_w - asset.data.root_pos_w.unsqueeze(1)
+    quat = asset.data.root_quat_w.unsqueeze(1).expand(-1, rel_w.shape[1], -1)
+    rel_b = quat_apply_inverse(quat, rel_w)
+    return torch.sum(torch.square(rel_b[..., :2] - nominal), dim=(1, 2))
 
 
 def feet_air_time_target(
@@ -138,6 +344,7 @@ def foot_clearance_l2(
     env: ManagerBasedRLEnv,
     asset_cfg: SceneEntityCfg,
     target_height: float,
+    tip_offset: float = TIBIA_TIP_OFFSET,
 ) -> torch.Tensor:
     """Penalize swing feet that do not reach ``target_height`` above the ground.
 
@@ -149,7 +356,7 @@ def foot_clearance_l2(
     Assumes flat ground at the env origin height.
     """
     asset: Articulation = env.scene[asset_cfg.name]
-    foot_pos_w = _foot_positions_w(asset, asset_cfg.body_ids)
+    foot_pos_w = _foot_positions_w(asset, asset_cfg.body_ids, tip_offset)
     foot_height = foot_pos_w[..., 2] - env.scene.env_origins[:, 2].unsqueeze(1)
     # body-origin velocity is a good enough proxy for the tip's horizontal speed here
     foot_speed_xy = torch.norm(asset.data.body_lin_vel_w[:, asset_cfg.body_ids, :2], dim=-1)
