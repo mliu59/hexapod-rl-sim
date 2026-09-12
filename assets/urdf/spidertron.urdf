@@ -1,0 +1,465 @@
+<?xml version="1.0"?>
+<robot name="spidertron_hexapod">
+  <material name="pod_grey"><color rgba="0.55 0.57 0.60 1"/></material>
+  <material name="leg_orange"><color rgba="0.85 0.45 0.10 1"/></material>
+  <material name="leg_dark"><color rgba="0.20 0.20 0.22 1"/></material>
+  <link name="base_link">
+    <inertial>
+      <origin xyz="-0.000000 0.000000 -0.007135" rpy="0 0 0"/>
+      <mass value="0.960000"/>
+      <inertia ixx="2.896e-03" ixy="1.193e-18" ixz="7.725e-19" iyy="3.039e-03" iyz="4.608e-19" izz="5.162e-03"/>
+    </inertial>
+    <visual>
+      <geometry><mesh filename="../meshes/spidertron/body.stl" scale="0.001 0.001 0.001"/></geometry>
+      <material name="pod_grey"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.0924" length="0.1000"/></geometry>
+    </collision>
+  </link>
+  <link name="LF_coxa">
+    <inertial>
+      <origin xyz="0.060181 -0.013761 0.000861" rpy="0 0 0"/>
+      <mass value="0.104500"/>
+      <inertia ixx="2.225e-05" ixy="1.770e-05" ixz="2.716e-06" iyy="7.285e-05" iyz="-1.239e-06" izz="8.701e-05"/>
+    </inertial>
+    <visual>
+      <geometry><mesh filename="../meshes/spidertron/coxa.stl" scale="0.001 0.001 0.001"/></geometry>
+      <material name="leg_dark"/>
+    </visual>
+    <collision>
+      <origin xyz="0.0360 0 -0.0165" rpy="0 0 0"/>
+      <geometry><box size="0.0951 0.0267 0.0450"/></geometry>
+    </collision>
+  </link>
+  <link name="LF_femur">
+    <inertial>
+      <origin xyz="0.140789 -0.010692 -0.000000" rpy="0 0 0"/>
+      <mass value="0.134500"/>
+      <inertia ixx="4.289e-05" ixy="5.280e-05" ixz="1.283e-21" iyy="4.853e-04" iyz="-2.380e-22" izz="5.119e-04"/>
+    </inertial>
+    <visual>
+      <geometry><mesh filename="../meshes/spidertron/femur.stl" scale="0.001 0.001 0.001"/></geometry>
+      <material name="leg_orange"/>
+    </visual>
+    <collision>
+      <origin xyz="0.0950 0 0" rpy="0 1.570796 0"/>
+      <geometry><cylinder radius="0.0174"
+          length="0.2240"/></geometry>
+    </collision>
+  </link>
+  <link name="LF_tibia">
+    <inertial>
+      <origin xyz="0.138075 0.006000 -0.000000" rpy="0 0 0"/>
+      <mass value="0.085000"/>
+      <inertia ixx="3.408e-06" ixy="1.958e-20" ixz="-2.218e-15" iyy="9.283e-04" iyz="7.193e-16" izz="9.263e-04"/>
+    </inertial>
+    <visual>
+      <geometry><mesh filename="../meshes/spidertron/tibia.stl" scale="0.001 0.001 0.001"/></geometry>
+      <material name="leg_dark"/>
+    </visual>
+    <collision>
+      <origin xyz="0.1800 0.0060 0" rpy="0 1.570796 0"/>
+      <geometry><cylinder radius="0.0090" length="0.3600"/></geometry>
+    </collision>
+    <collision>
+      <origin xyz="0.3770 0.0060 0" rpy="0 0 0"/>
+      <geometry><sphere radius="0.0040"/></geometry>
+    </collision>
+  </link>
+  <joint name="LF_coxa_joint" type="revolute">
+    <parent link="base_link"/>
+    <child link="LF_coxa"/>
+    <origin xyz="0.082272 0.047500 0.000000" rpy="0.000000 0.000000 0.523599"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-0.436332" upper="0.436332" effort="2.06" velocity="5.38"/>
+    <dynamics damping="0.01" friction="0.0"/>
+  </joint>
+  <joint name="LF_femur_joint" type="revolute">
+    <parent link="LF_coxa"/>
+    <child link="LF_femur"/>
+    <origin xyz="0.060000 0.000000 0.000000" rpy="0.000000 0.000000 0.000000"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.483530" upper="0.436332" effort="3.43" velocity="5.91"/>
+    <dynamics damping="0.01" friction="0.0"/>
+  </joint>
+  <joint name="LF_tibia_joint" type="revolute">
+    <parent link="LF_femur"/>
+    <child link="LF_tibia"/>
+    <origin xyz="0.190000 0.000000 0.000000" rpy="0.000000 0.000000 0.000000"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0.523599" upper="2.530727" effort="3.43" velocity="5.91"/>
+    <dynamics damping="0.01" friction="0.0"/>
+  </joint>
+  <link name="LM_coxa">
+    <inertial>
+      <origin xyz="0.060181 -0.013761 0.000861" rpy="0 0 0"/>
+      <mass value="0.104500"/>
+      <inertia ixx="2.225e-05" ixy="1.770e-05" ixz="2.716e-06" iyy="7.285e-05" iyz="-1.239e-06" izz="8.701e-05"/>
+    </inertial>
+    <visual>
+      <geometry><mesh filename="../meshes/spidertron/coxa.stl" scale="0.001 0.001 0.001"/></geometry>
+      <material name="leg_dark"/>
+    </visual>
+    <collision>
+      <origin xyz="0.0360 0 -0.0165" rpy="0 0 0"/>
+      <geometry><box size="0.0951 0.0267 0.0450"/></geometry>
+    </collision>
+  </link>
+  <link name="LM_femur">
+    <inertial>
+      <origin xyz="0.140789 -0.010692 -0.000000" rpy="0 0 0"/>
+      <mass value="0.134500"/>
+      <inertia ixx="4.289e-05" ixy="5.280e-05" ixz="1.283e-21" iyy="4.853e-04" iyz="-2.380e-22" izz="5.119e-04"/>
+    </inertial>
+    <visual>
+      <geometry><mesh filename="../meshes/spidertron/femur.stl" scale="0.001 0.001 0.001"/></geometry>
+      <material name="leg_orange"/>
+    </visual>
+    <collision>
+      <origin xyz="0.0950 0 0" rpy="0 1.570796 0"/>
+      <geometry><cylinder radius="0.0174"
+          length="0.2240"/></geometry>
+    </collision>
+  </link>
+  <link name="LM_tibia">
+    <inertial>
+      <origin xyz="0.138075 0.006000 -0.000000" rpy="0 0 0"/>
+      <mass value="0.085000"/>
+      <inertia ixx="3.408e-06" ixy="1.958e-20" ixz="-2.218e-15" iyy="9.283e-04" iyz="7.193e-16" izz="9.263e-04"/>
+    </inertial>
+    <visual>
+      <geometry><mesh filename="../meshes/spidertron/tibia.stl" scale="0.001 0.001 0.001"/></geometry>
+      <material name="leg_dark"/>
+    </visual>
+    <collision>
+      <origin xyz="0.1800 0.0060 0" rpy="0 1.570796 0"/>
+      <geometry><cylinder radius="0.0090" length="0.3600"/></geometry>
+    </collision>
+    <collision>
+      <origin xyz="0.3770 0.0060 0" rpy="0 0 0"/>
+      <geometry><sphere radius="0.0040"/></geometry>
+    </collision>
+  </link>
+  <joint name="LM_coxa_joint" type="revolute">
+    <parent link="base_link"/>
+    <child link="LM_coxa"/>
+    <origin xyz="0.000000 0.095000 0.000000" rpy="0.000000 0.000000 1.570796"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-0.436332" upper="0.436332" effort="2.06" velocity="5.38"/>
+    <dynamics damping="0.01" friction="0.0"/>
+  </joint>
+  <joint name="LM_femur_joint" type="revolute">
+    <parent link="LM_coxa"/>
+    <child link="LM_femur"/>
+    <origin xyz="0.060000 0.000000 0.000000" rpy="0.000000 0.000000 0.000000"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.483530" upper="0.436332" effort="3.43" velocity="5.91"/>
+    <dynamics damping="0.01" friction="0.0"/>
+  </joint>
+  <joint name="LM_tibia_joint" type="revolute">
+    <parent link="LM_femur"/>
+    <child link="LM_tibia"/>
+    <origin xyz="0.190000 0.000000 0.000000" rpy="0.000000 0.000000 0.000000"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0.523599" upper="2.530727" effort="3.43" velocity="5.91"/>
+    <dynamics damping="0.01" friction="0.0"/>
+  </joint>
+  <link name="LR_coxa">
+    <inertial>
+      <origin xyz="0.060181 -0.013761 0.000861" rpy="0 0 0"/>
+      <mass value="0.104500"/>
+      <inertia ixx="2.225e-05" ixy="1.770e-05" ixz="2.716e-06" iyy="7.285e-05" iyz="-1.239e-06" izz="8.701e-05"/>
+    </inertial>
+    <visual>
+      <geometry><mesh filename="../meshes/spidertron/coxa.stl" scale="0.001 0.001 0.001"/></geometry>
+      <material name="leg_dark"/>
+    </visual>
+    <collision>
+      <origin xyz="0.0360 0 -0.0165" rpy="0 0 0"/>
+      <geometry><box size="0.0951 0.0267 0.0450"/></geometry>
+    </collision>
+  </link>
+  <link name="LR_femur">
+    <inertial>
+      <origin xyz="0.140789 -0.010692 -0.000000" rpy="0 0 0"/>
+      <mass value="0.134500"/>
+      <inertia ixx="4.289e-05" ixy="5.280e-05" ixz="1.283e-21" iyy="4.853e-04" iyz="-2.380e-22" izz="5.119e-04"/>
+    </inertial>
+    <visual>
+      <geometry><mesh filename="../meshes/spidertron/femur.stl" scale="0.001 0.001 0.001"/></geometry>
+      <material name="leg_orange"/>
+    </visual>
+    <collision>
+      <origin xyz="0.0950 0 0" rpy="0 1.570796 0"/>
+      <geometry><cylinder radius="0.0174"
+          length="0.2240"/></geometry>
+    </collision>
+  </link>
+  <link name="LR_tibia">
+    <inertial>
+      <origin xyz="0.138075 0.006000 -0.000000" rpy="0 0 0"/>
+      <mass value="0.085000"/>
+      <inertia ixx="3.408e-06" ixy="1.958e-20" ixz="-2.218e-15" iyy="9.283e-04" iyz="7.193e-16" izz="9.263e-04"/>
+    </inertial>
+    <visual>
+      <geometry><mesh filename="../meshes/spidertron/tibia.stl" scale="0.001 0.001 0.001"/></geometry>
+      <material name="leg_dark"/>
+    </visual>
+    <collision>
+      <origin xyz="0.1800 0.0060 0" rpy="0 1.570796 0"/>
+      <geometry><cylinder radius="0.0090" length="0.3600"/></geometry>
+    </collision>
+    <collision>
+      <origin xyz="0.3770 0.0060 0" rpy="0 0 0"/>
+      <geometry><sphere radius="0.0040"/></geometry>
+    </collision>
+  </link>
+  <joint name="LR_coxa_joint" type="revolute">
+    <parent link="base_link"/>
+    <child link="LR_coxa"/>
+    <origin xyz="-0.082272 0.047500 0.000000" rpy="0.000000 0.000000 2.617994"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-0.436332" upper="0.436332" effort="2.06" velocity="5.38"/>
+    <dynamics damping="0.01" friction="0.0"/>
+  </joint>
+  <joint name="LR_femur_joint" type="revolute">
+    <parent link="LR_coxa"/>
+    <child link="LR_femur"/>
+    <origin xyz="0.060000 0.000000 0.000000" rpy="0.000000 0.000000 0.000000"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.483530" upper="0.436332" effort="3.43" velocity="5.91"/>
+    <dynamics damping="0.01" friction="0.0"/>
+  </joint>
+  <joint name="LR_tibia_joint" type="revolute">
+    <parent link="LR_femur"/>
+    <child link="LR_tibia"/>
+    <origin xyz="0.190000 0.000000 0.000000" rpy="0.000000 0.000000 0.000000"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0.523599" upper="2.530727" effort="3.43" velocity="5.91"/>
+    <dynamics damping="0.01" friction="0.0"/>
+  </joint>
+  <link name="RR_coxa">
+    <inertial>
+      <origin xyz="0.060181 -0.013761 0.000861" rpy="0 0 0"/>
+      <mass value="0.104500"/>
+      <inertia ixx="2.225e-05" ixy="1.770e-05" ixz="2.716e-06" iyy="7.285e-05" iyz="-1.239e-06" izz="8.701e-05"/>
+    </inertial>
+    <visual>
+      <geometry><mesh filename="../meshes/spidertron/coxa.stl" scale="0.001 0.001 0.001"/></geometry>
+      <material name="leg_dark"/>
+    </visual>
+    <collision>
+      <origin xyz="0.0360 0 -0.0165" rpy="0 0 0"/>
+      <geometry><box size="0.0951 0.0267 0.0450"/></geometry>
+    </collision>
+  </link>
+  <link name="RR_femur">
+    <inertial>
+      <origin xyz="0.140789 -0.010692 -0.000000" rpy="0 0 0"/>
+      <mass value="0.134500"/>
+      <inertia ixx="4.289e-05" ixy="5.280e-05" ixz="1.283e-21" iyy="4.853e-04" iyz="-2.380e-22" izz="5.119e-04"/>
+    </inertial>
+    <visual>
+      <geometry><mesh filename="../meshes/spidertron/femur.stl" scale="0.001 0.001 0.001"/></geometry>
+      <material name="leg_orange"/>
+    </visual>
+    <collision>
+      <origin xyz="0.0950 0 0" rpy="0 1.570796 0"/>
+      <geometry><cylinder radius="0.0174"
+          length="0.2240"/></geometry>
+    </collision>
+  </link>
+  <link name="RR_tibia">
+    <inertial>
+      <origin xyz="0.138075 0.006000 -0.000000" rpy="0 0 0"/>
+      <mass value="0.085000"/>
+      <inertia ixx="3.408e-06" ixy="1.958e-20" ixz="-2.218e-15" iyy="9.283e-04" iyz="7.193e-16" izz="9.263e-04"/>
+    </inertial>
+    <visual>
+      <geometry><mesh filename="../meshes/spidertron/tibia.stl" scale="0.001 0.001 0.001"/></geometry>
+      <material name="leg_dark"/>
+    </visual>
+    <collision>
+      <origin xyz="0.1800 0.0060 0" rpy="0 1.570796 0"/>
+      <geometry><cylinder radius="0.0090" length="0.3600"/></geometry>
+    </collision>
+    <collision>
+      <origin xyz="0.3770 0.0060 0" rpy="0 0 0"/>
+      <geometry><sphere radius="0.0040"/></geometry>
+    </collision>
+  </link>
+  <joint name="RR_coxa_joint" type="revolute">
+    <parent link="base_link"/>
+    <child link="RR_coxa"/>
+    <origin xyz="-0.082272 -0.047500 0.000000" rpy="0.000000 0.000000 3.665191"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-0.436332" upper="0.436332" effort="2.06" velocity="5.38"/>
+    <dynamics damping="0.01" friction="0.0"/>
+  </joint>
+  <joint name="RR_femur_joint" type="revolute">
+    <parent link="RR_coxa"/>
+    <child link="RR_femur"/>
+    <origin xyz="0.060000 0.000000 0.000000" rpy="0.000000 0.000000 0.000000"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.483530" upper="0.436332" effort="3.43" velocity="5.91"/>
+    <dynamics damping="0.01" friction="0.0"/>
+  </joint>
+  <joint name="RR_tibia_joint" type="revolute">
+    <parent link="RR_femur"/>
+    <child link="RR_tibia"/>
+    <origin xyz="0.190000 0.000000 0.000000" rpy="0.000000 0.000000 0.000000"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0.523599" upper="2.530727" effort="3.43" velocity="5.91"/>
+    <dynamics damping="0.01" friction="0.0"/>
+  </joint>
+  <link name="RM_coxa">
+    <inertial>
+      <origin xyz="0.060181 -0.013761 0.000861" rpy="0 0 0"/>
+      <mass value="0.104500"/>
+      <inertia ixx="2.225e-05" ixy="1.770e-05" ixz="2.716e-06" iyy="7.285e-05" iyz="-1.239e-06" izz="8.701e-05"/>
+    </inertial>
+    <visual>
+      <geometry><mesh filename="../meshes/spidertron/coxa.stl" scale="0.001 0.001 0.001"/></geometry>
+      <material name="leg_dark"/>
+    </visual>
+    <collision>
+      <origin xyz="0.0360 0 -0.0165" rpy="0 0 0"/>
+      <geometry><box size="0.0951 0.0267 0.0450"/></geometry>
+    </collision>
+  </link>
+  <link name="RM_femur">
+    <inertial>
+      <origin xyz="0.140789 -0.010692 -0.000000" rpy="0 0 0"/>
+      <mass value="0.134500"/>
+      <inertia ixx="4.289e-05" ixy="5.280e-05" ixz="1.283e-21" iyy="4.853e-04" iyz="-2.380e-22" izz="5.119e-04"/>
+    </inertial>
+    <visual>
+      <geometry><mesh filename="../meshes/spidertron/femur.stl" scale="0.001 0.001 0.001"/></geometry>
+      <material name="leg_orange"/>
+    </visual>
+    <collision>
+      <origin xyz="0.0950 0 0" rpy="0 1.570796 0"/>
+      <geometry><cylinder radius="0.0174"
+          length="0.2240"/></geometry>
+    </collision>
+  </link>
+  <link name="RM_tibia">
+    <inertial>
+      <origin xyz="0.138075 0.006000 -0.000000" rpy="0 0 0"/>
+      <mass value="0.085000"/>
+      <inertia ixx="3.408e-06" ixy="1.958e-20" ixz="-2.218e-15" iyy="9.283e-04" iyz="7.193e-16" izz="9.263e-04"/>
+    </inertial>
+    <visual>
+      <geometry><mesh filename="../meshes/spidertron/tibia.stl" scale="0.001 0.001 0.001"/></geometry>
+      <material name="leg_dark"/>
+    </visual>
+    <collision>
+      <origin xyz="0.1800 0.0060 0" rpy="0 1.570796 0"/>
+      <geometry><cylinder radius="0.0090" length="0.3600"/></geometry>
+    </collision>
+    <collision>
+      <origin xyz="0.3770 0.0060 0" rpy="0 0 0"/>
+      <geometry><sphere radius="0.0040"/></geometry>
+    </collision>
+  </link>
+  <joint name="RM_coxa_joint" type="revolute">
+    <parent link="base_link"/>
+    <child link="RM_coxa"/>
+    <origin xyz="-0.000000 -0.095000 0.000000" rpy="0.000000 0.000000 4.712389"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-0.436332" upper="0.436332" effort="2.06" velocity="5.38"/>
+    <dynamics damping="0.01" friction="0.0"/>
+  </joint>
+  <joint name="RM_femur_joint" type="revolute">
+    <parent link="RM_coxa"/>
+    <child link="RM_femur"/>
+    <origin xyz="0.060000 0.000000 0.000000" rpy="0.000000 0.000000 0.000000"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.483530" upper="0.436332" effort="3.43" velocity="5.91"/>
+    <dynamics damping="0.01" friction="0.0"/>
+  </joint>
+  <joint name="RM_tibia_joint" type="revolute">
+    <parent link="RM_femur"/>
+    <child link="RM_tibia"/>
+    <origin xyz="0.190000 0.000000 0.000000" rpy="0.000000 0.000000 0.000000"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0.523599" upper="2.530727" effort="3.43" velocity="5.91"/>
+    <dynamics damping="0.01" friction="0.0"/>
+  </joint>
+  <link name="RF_coxa">
+    <inertial>
+      <origin xyz="0.060181 -0.013761 0.000861" rpy="0 0 0"/>
+      <mass value="0.104500"/>
+      <inertia ixx="2.225e-05" ixy="1.770e-05" ixz="2.716e-06" iyy="7.285e-05" iyz="-1.239e-06" izz="8.701e-05"/>
+    </inertial>
+    <visual>
+      <geometry><mesh filename="../meshes/spidertron/coxa.stl" scale="0.001 0.001 0.001"/></geometry>
+      <material name="leg_dark"/>
+    </visual>
+    <collision>
+      <origin xyz="0.0360 0 -0.0165" rpy="0 0 0"/>
+      <geometry><box size="0.0951 0.0267 0.0450"/></geometry>
+    </collision>
+  </link>
+  <link name="RF_femur">
+    <inertial>
+      <origin xyz="0.140789 -0.010692 -0.000000" rpy="0 0 0"/>
+      <mass value="0.134500"/>
+      <inertia ixx="4.289e-05" ixy="5.280e-05" ixz="1.283e-21" iyy="4.853e-04" iyz="-2.380e-22" izz="5.119e-04"/>
+    </inertial>
+    <visual>
+      <geometry><mesh filename="../meshes/spidertron/femur.stl" scale="0.001 0.001 0.001"/></geometry>
+      <material name="leg_orange"/>
+    </visual>
+    <collision>
+      <origin xyz="0.0950 0 0" rpy="0 1.570796 0"/>
+      <geometry><cylinder radius="0.0174"
+          length="0.2240"/></geometry>
+    </collision>
+  </link>
+  <link name="RF_tibia">
+    <inertial>
+      <origin xyz="0.138075 0.006000 -0.000000" rpy="0 0 0"/>
+      <mass value="0.085000"/>
+      <inertia ixx="3.408e-06" ixy="1.958e-20" ixz="-2.218e-15" iyy="9.283e-04" iyz="7.193e-16" izz="9.263e-04"/>
+    </inertial>
+    <visual>
+      <geometry><mesh filename="../meshes/spidertron/tibia.stl" scale="0.001 0.001 0.001"/></geometry>
+      <material name="leg_dark"/>
+    </visual>
+    <collision>
+      <origin xyz="0.1800 0.0060 0" rpy="0 1.570796 0"/>
+      <geometry><cylinder radius="0.0090" length="0.3600"/></geometry>
+    </collision>
+    <collision>
+      <origin xyz="0.3770 0.0060 0" rpy="0 0 0"/>
+      <geometry><sphere radius="0.0040"/></geometry>
+    </collision>
+  </link>
+  <joint name="RF_coxa_joint" type="revolute">
+    <parent link="base_link"/>
+    <child link="RF_coxa"/>
+    <origin xyz="0.082272 -0.047500 0.000000" rpy="0.000000 0.000000 5.759587"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-0.436332" upper="0.436332" effort="2.06" velocity="5.38"/>
+    <dynamics damping="0.01" friction="0.0"/>
+  </joint>
+  <joint name="RF_femur_joint" type="revolute">
+    <parent link="RF_coxa"/>
+    <child link="RF_femur"/>
+    <origin xyz="0.060000 0.000000 0.000000" rpy="0.000000 0.000000 0.000000"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.483530" upper="0.436332" effort="3.43" velocity="5.91"/>
+    <dynamics damping="0.01" friction="0.0"/>
+  </joint>
+  <joint name="RF_tibia_joint" type="revolute">
+    <parent link="RF_femur"/>
+    <child link="RF_tibia"/>
+    <origin xyz="0.190000 0.000000 0.000000" rpy="0.000000 0.000000 0.000000"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0.523599" upper="2.530727" effort="3.43" velocity="5.91"/>
+    <dynamics damping="0.01" friction="0.0"/>
+  </joint>
+</robot>

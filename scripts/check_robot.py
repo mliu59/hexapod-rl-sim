@@ -14,6 +14,12 @@ import argparse
 from isaaclab.app import AppLauncher
 
 parser = argparse.ArgumentParser(description="Sanity-check the hexapod articulation.")
+parser.add_argument(
+    "--robot",
+    choices=("hexapod", "spidertron"),
+    default="hexapod",
+    help="Which articulation config to check.",
+)
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
@@ -24,7 +30,9 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
 from isaaclab.sim import SimulationContext
 
-from hexapod_lab.robots import HEXAPOD_CFG
+from hexapod_lab.robots import HEXAPOD_CFG, SPIDERTRON_CFG
+
+ROBOT_CFG = {"hexapod": HEXAPOD_CFG, "spidertron": SPIDERTRON_CFG}[args_cli.robot]
 
 
 def main() -> None:
@@ -35,7 +43,7 @@ def main() -> None:
     light_cfg = sim_utils.DomeLightCfg(intensity=2000.0)
     light_cfg.func("/World/light", light_cfg)
 
-    robot = Articulation(HEXAPOD_CFG.replace(prim_path="/World/Robot"))
+    robot = Articulation(ROBOT_CFG.replace(prim_path="/World/Robot"))
 
     sim.reset()
 
@@ -63,7 +71,7 @@ def main() -> None:
     print(f"[check] stiffness: {robot.data.joint_stiffness[0, :3].tolist()}")
     print(f"[check] damping:   {robot.data.joint_damping[0, :3].tolist()}")
     assert 0.06 < end_h < 0.4, f"implausible settled height {end_h:.3f} m (robot not standing)"
-    print("[check] OK: hexapod loads, articulates, and stands under PD hold")
+    print(f"[check] OK: {args_cli.robot} loads, articulates, and stands under PD hold")
 
 
 if __name__ == "__main__":
