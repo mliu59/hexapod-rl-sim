@@ -23,6 +23,37 @@ if TYPE_CHECKING:
 TIBIA_TIP_OFFSET = 0.14
 
 
+def base_height_target_exp(
+    env: ManagerBasedRLEnv,
+    target_height: float,
+    std: float,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Reward the base sitting at ``target_height`` above the env origin (exp kernel).
+
+    The positive counterpart of ``mdp.base_height_l2``: a task whose *objective* is
+    holding a height needs a term that pays for success, not one that only punishes
+    deviation -- an all-penalty reward gives the policy nothing to climb and makes
+    the reward report unreadable (every term negative, "best" run least-punished).
+    ``std`` sets the tolerance: reward is ~0.37 of max at ``|h - target| = std``.
+
+    Assumes flat ground at the env origin height.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    height = asset.data.root_pos_w[:, 2] - env.scene.env_origins[:, 2]
+    return torch.exp(-torch.square(height - target_height) / std**2)
+
+
+def base_lin_vel_xy_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    """Penalize horizontal base velocity (for stand-still tasks).
+
+    The core mdp only offers ``lin_vel_z_l2``; a velocity-tracking task keeps the
+    xy plane free for the command, but a stationary task wants it damped too.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    return torch.sum(torch.square(asset.data.root_lin_vel_b[:, :2]), dim=1)
+
+
 def joint_pos_target_l2(env: ManagerBasedRLEnv, target: float, asset_cfg: SceneEntityCfg) -> torch.Tensor:
     """Penalize joint position deviation from a target value."""
     # extract the used quantities (to enable type-hinting)

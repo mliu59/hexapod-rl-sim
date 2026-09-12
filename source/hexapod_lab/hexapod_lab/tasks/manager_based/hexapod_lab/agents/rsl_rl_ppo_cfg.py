@@ -49,3 +49,18 @@ class HexapodFlatPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         desired_kl=0.01,
         max_grad_norm=1.0,
     )
+
+
+@configclass
+class SpidertronStandPPORunnerCfg(HexapodFlatPPORunnerCfg):
+    """PPO for the spidertron stand-still task.
+
+    Same learner as the flat-ground velocity baseline -- differences in training
+    behaviour should point at the task, not the algorithm. Standing has no
+    long-horizon credit assignment, so 300 iterations is generous; watch the
+    reward flatten well before that.
+    """
+
+    max_iterations = 300
+    save_interval = 50
+    experiment_name = "spidertron_stand"
