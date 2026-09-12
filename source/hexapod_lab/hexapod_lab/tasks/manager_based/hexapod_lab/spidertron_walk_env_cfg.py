@@ -125,8 +125,10 @@ class WalkRewardsCfg:
     feet_air_time = RewTerm(
         func=mdp.feet_air_time_target_active,
         # M2 lesson: lifting a leg must be worth more than holding still, or
-        # the gait terms sum negative and the optimum is to freeze
-        weight=4.0,
+        # the gait terms sum negative and the optimum is to freeze.
+        # v5: 4.0 -> 6.0 -- v4 stalled in a suppressed-shuffle equilibrium
+        # (feet_air_time flat at ~-0.02 for 600 iters while tracking converged)
+        weight=6.0,
         params={
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_tibia"),
             "command_name": "base_motion",
@@ -223,6 +225,11 @@ class SpidertronWalkEnvCfg(SpidertronBaseEnvCfg):
         # room for walk-stop-walk transitions within one episode (~2-3 command
         # windows per term)
         self.episode_length_s = 12.0
+        # v5: wider action range FOR THIS TASK ONLY (stand/height keep 0.25).
+        # Hypothesis from the v4 stall: 0.4 s swings need more joint-angle room
+        # per action than 0.25 rad allows, making long strides awkward to
+        # express rather than merely unrewarded.
+        self.actions.joint_pos.scale = 0.35
 
 
 @configclass

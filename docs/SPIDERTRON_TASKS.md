@@ -139,3 +139,12 @@ reward-per-second was indifferent). Reshaped to
 every touchdown. v4 pushed for longer strides on request: TARGET 0.3 → 0.4 s,
 MIN_AIR 0.1 → 0.15 s (~12 cm stance travel per cycle at 0.3 m/s, within coxa
 range).
+
+**v4 outcome** (run `2026-09-12_19-06-25`, stopped at ~840): the kernel fixes
+worked decisively — `track_heading` 1.28/1.5 and `track_yaw_rate` 1.69/2.0 by
+iteration 600, vs flat-zero through v2 — but gait stalled in a
+suppressed-shuffle equilibrium: `feet_air_time` flat at ≈ −0.02 for 600
+iterations while everything else converged. **v5 revision**: action scale
+0.25 → 0.35 rad (walk task only — hypothesis: 0.4 s swings need more
+joint-angle room per action than 0.25 rad expresses) and `feet_air_time`
+weight 4.0 → 6.0.
