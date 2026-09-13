@@ -314,6 +314,34 @@ tracking 2.71, duty_min 0.28. **Next: fresh from-scratch run under the
 complete v5 reward set** (all constraints present from the first gradient
 step, no hop history to unlearn) before considering the gait clock.
 
+**v6 — fresh from-scratch under the complete v5 reward set** (run
+`2026-09-13_14-51-18`, 2000 iters): the habit-lock hypothesis confirmed
+decisively — tripod antiphase hit **0.92 within 300 iterations** (the
+six-resume chain peaked at 0.39) and held ~0.93 throughout. Final:
+**duty_min 0.456** (project record), tripod_balance −0.06 (within-group
+equality essentially satisfied), contact_count −0.37, air-time positive,
+tracking 2.79/3.0, zero falls across the entire run. Step lengths 7–12 cm.
+Remaining asymmetry: a stable carry/stride role split between the tripods
+(~85% vs ~10% duty) — internally balanced, cleanly anti-phased, but not
+symmetric alternation; duty_min's window-average (0.46) vs the rollout
+table's per-foot duty (~10%) suggests the light tripod runs frequent short
+cycles. Artifacts: docs/march_v6_spidertron.mp4, march_v6_training.png,
+march_v6_gait_diagnostics.png, policies/spidertron_march_v6_model_1999.pt.
+
+**The load-bearing lesson of the arc**: constraints compound when present
+from the first gradient step and merely trade when retrofitted onto a
+converged policy — fresh runs under the full reward set beat every
+resume-chain attempt by 2–3× on the coordination metrics at a fraction of
+the compute.
+
+**March-max variant** (`Spidertron-MarchMax-v0`, in progress): identical
+constraint suite, linear (uncapped) forward-velocity reward — measures the
+fastest honest tripod the constraints permit. First attempt converged to a
+0.85 s lunge-and-fall (early termination SAVED accumulated penalties; the
+fall was free) — fixed with `is_terminated` −200 and speed weight 8 → 5.
+Relaunch: zero falls, ~0.4 m/s average within 200 iterations with
+antiphase ~0.65–0.68.
+
 **March → walk transfer (walk v10, in config)**: `foot_duty_deviation`
 (−4) added to the walk rewards; swing band aligned (0.08/0.25);
 `stance_progress` 0.5 → 1.0; the falsified v8 speed ramp replaced by the
