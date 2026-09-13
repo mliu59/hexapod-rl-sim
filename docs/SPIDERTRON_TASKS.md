@@ -289,6 +289,31 @@ the v9 walk's tap-dance value), duty_mean 0.59, air-time ≈ break-even,
 forward tracking 2.81/3.0 at 0.2 m/s, zero falls.** Declared a good-enough
 march; promoted to the walk port.
 
+**v4 — tripod shaping** (user review: robots mainly hop on flat ground;
+rough terrain would select against hops, flat does not): `tripod_antiphase`
+(+1.5, |mean_contact(A) − mean_contact(B)| — the alternating-tripod sets,
+derived from mount geometry as the unique adjacent-free 2-coloring of the
+leg ring, so no body orientation is prescribed) and `too_many_feet_airborne`
+(−2 per foot beyond 3). Speed 0.2 → 0.25, swing target 0.3, clearance 0.05.
+Mid-v4 a **20× throughput collapse** was diagnosed and fixed
+(`ContactSensor.body_names` materializing 78k prim paths per in-loop call —
+also the silent 4× tax on every run since march r1; commit 122c294).
+**v4b result** (resume of r3 model_1600 → iter 2500): tripod metric
+0.17 → **0.39**, airborne cost −2.4 → −0.6 (hop ~75% abandoned), duty_min
+0.36, tracking 2.76/3.0 at 0.25 m/s.
+
+**v5 — exact-3 + within-tripod balance** (user-directed):
+`contact_count_deviation` (−2, two-sided |contacts−3|) and
+`tripod_contact_time_balance` (−5, within-group contact-time variance).
+Resumed from v4b model_2500 → iter 3500. contact_count improved steadily
+(−1.02 → −0.60) but the tripod metric **plateaued at 0.32–0.33**
+(+0.01/300 iters, below the extension bar) with balance flat (−0.31) —
+the six-resume chain appears habit-locked: each new constraint now trades
+against the previous ones instead of compounding. Final: reward 2.90,
+tracking 2.71, duty_min 0.28. **Next: fresh from-scratch run under the
+complete v5 reward set** (all constraints present from the first gradient
+step, no hop history to unlearn) before considering the gait clock.
+
 **March → walk transfer (walk v10, in config)**: `foot_duty_deviation`
 (−4) added to the walk rewards; swing band aligned (0.08/0.25);
 `stance_progress` 0.5 → 1.0; the falsified v8 speed ramp replaced by the
