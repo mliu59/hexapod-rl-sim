@@ -93,6 +93,26 @@ gym.register(
 )
 
 gym.register(
+    id="Spidertron-MarchMax-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.spidertron_march_env_cfg:SpidertronMarchMaxEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:SpidertronMarchMaxPPORunnerCfg",
+    },
+)
+
+gym.register(
+    id="Spidertron-MarchMax-Play-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.spidertron_march_env_cfg:SpidertronMarchMaxEnvCfg_PLAY",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:SpidertronMarchMaxPPORunnerCfg",
+    },
+)
+
+gym.register(
     id="Spidertron-March-Play-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,

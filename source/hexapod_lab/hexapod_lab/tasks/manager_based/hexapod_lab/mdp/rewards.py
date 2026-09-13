@@ -106,6 +106,20 @@ def track_heading_cos(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor
     return 0.5 * (1.0 + cmd[:, 2])
 
 
+def forward_velocity(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    """Linear forward-speed reward (the max-speed march variant).
+
+    Unlike the exp tracking kernel -- which punishes EXCEEDING the setpoint --
+    this pays every additional m/s of base-frame forward velocity with
+    constant gradient, so the policy pushes until the servo limits, the
+    stability terms, and the tripod constraints push back. No cap: the
+    actuators and the retained penalties are the cap, and where they bind is
+    the measurement this variant exists to make.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    return torch.clamp(asset.data.root_lin_vel_b[:, 0], min=0.0)
+
+
 def track_forward_vel_exp(env: ManagerBasedRLEnv, std: float, command_name: str) -> torch.Tensor:
     """Track the commanded forward (base-x) speed, exp kernel, no gating.
 

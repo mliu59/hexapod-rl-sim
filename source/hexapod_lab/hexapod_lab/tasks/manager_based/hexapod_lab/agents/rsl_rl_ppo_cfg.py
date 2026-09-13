@@ -105,3 +105,11 @@ class SpidertronMarchPPORunnerCfg(SpidertronWalkPPORunnerCfg):
 
     max_iterations = 1000
     experiment_name = "spidertron_march"
+
+
+@configclass
+class SpidertronMarchMaxPPORunnerCfg(SpidertronMarchPPORunnerCfg):
+    """PPO for the max-speed march variant."""
+
+    max_iterations = 2000
+    experiment_name = "spidertron_march_max"

@@ -219,6 +219,18 @@ class MarchRewardsCfg:
 
 
 @configclass
+class MarchMaxRewardsCfg(MarchRewardsCfg):
+    """Max-speed variant: identical constraint suite, but forward speed is a
+    LINEAR reward instead of setpoint tracking -- finds the fastest gait the
+    tripod/honesty/smoothness constraints permit."""
+
+    forward_velocity = RewTerm(func=mdp.forward_velocity, weight=8.0)
+
+    def __post_init__(self):
+        self.track_forward_vel = None
+
+
+@configclass
 class MarchTerminationsCfg(BaseTerminationsCfg):
     bad_orientation = DoneTerm(func=mdp.bad_orientation, params={"limit_angle": 1.0})
 
@@ -257,6 +269,29 @@ class SpidertronMarchEnvCfg(SpidertronBaseEnvCfg):
         self.events.reset_base.params["pose_range"]["yaw"] = (-0.3, 0.3)
         # v9 exploration pairing (product 0.245 <= proven 0.25)
         self.actions.joint_pos.scale = 0.35
+
+
+@configclass
+class SpidertronMarchMaxEnvCfg(SpidertronMarchEnvCfg):
+    """Max-speed march: linear velocity reward, same constraints."""
+
+    rewards: MarchMaxRewardsCfg = MarchMaxRewardsCfg()
+
+    def __post_init__(self):
+        super().__post_init__()
+        # commanded speed becomes a constant "go fast" observation; the reward
+        # no longer references it
+        self.commands.base_motion.ranges.speed = (0.5, 0.5)
+
+
+@configclass
+class SpidertronMarchMaxEnvCfg_PLAY(SpidertronMarchMaxEnvCfg):
+    def __post_init__(self):
+        super().__post_init__()
+        self.scene.num_envs = 32
+        self.scene.env_spacing = 2.0
+        self.observations.policy.enable_corruption = False
+        self.events.push_robot = None
 
 
 @configclass
