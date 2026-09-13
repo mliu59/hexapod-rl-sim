@@ -30,9 +30,10 @@ from . import mdp
 from .spidertron_base_env_cfg import NOMINAL_HEIGHT, SpidertronBaseEnvCfg
 from .spidertron_base_env_cfg import ObservationsCfg as BaseObservationsCfg
 from .spidertron_base_env_cfg import TerminationsCfg as BaseTerminationsCfg
-from .spidertron_walk_env_cfg import FOOT_CLEARANCE, FOOT_TIP_OFFSET
+from .spidertron_walk_env_cfg import FOOT_TIP_OFFSET
 
-MARCH_SPEED = 0.2  # m/s -- brisk but inside the Froude budget (max cmd was 0.3)
+# v4: 0.2 -> 0.25 (user direction: faster march; still inside the 0.3 budget)
+MARCH_SPEED = 0.25  # m/s
 
 # Run 3: align the swing-time band with the policy's revealed cadence. Across
 # every configuration (walk v4-v9, march r1-r2) the policy converges to
@@ -41,7 +42,10 @@ MARCH_SPEED = 0.2  # m/s -- brisk but inside the Froude budget (max cmd was 0.3)
 # antagonists (duty gains were paid for with shrinking swings). Floor 0.08
 # still kills genuine taps; target 0.25 is earnable from the natural gait.
 MARCH_MIN_AIR_TIME = 0.08  # s
-MARCH_TARGET_SWING_TIME = 0.25  # s
+# v4: target 0.25 -> 0.3 -- push toward larger (but stable: slip/clearance
+# still enforced) swings now that the floor sits below the natural cadence
+MARCH_TARGET_SWING_TIME = 0.3  # s
+MARCH_FOOT_CLEARANCE = 0.05  # m, raised from 0.04 for the bigger swings
 
 
 @configclass
@@ -119,8 +123,26 @@ class MarchRewardsCfg:
         weight=-5.0,
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=".*_tibia"),
-            "target_height": FOOT_CLEARANCE,
+            "target_height": MARCH_FOOT_CLEARANCE,
             "tip_offset": FOOT_TIP_OFFSET,
+        },
+    )
+    # -- v4 gait structure: alternating tripods, no flight phases
+    tripod_antiphase = RewTerm(
+        func=mdp.tripod_antiphase,
+        weight=1.5,
+        params={
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_tibia"),
+            "command_name": "base_motion",
+        },
+    )
+    too_many_airborne = RewTerm(
+        func=mdp.too_many_feet_airborne,
+        weight=-2.0,
+        params={
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_tibia"),
+            "command_name": "base_motion",
+            "max_airborne": 3,
         },
     )
     foot_slip = RewTerm(
@@ -198,6 +220,9 @@ class MarchMetricsCfg:
     )
     metric_foot_duty_mean = CurrTerm(
         func=mdp.foot_duty_metric, params={"sensor_name": "contact_forces", "reduce": "mean"}
+    )
+    metric_tripod_antiphase = CurrTerm(
+        func=mdp.tripod_antiphase_metric, params={"sensor_name": "contact_forces"}
     )
 
 

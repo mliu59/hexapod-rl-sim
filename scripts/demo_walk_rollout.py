@@ -18,6 +18,12 @@ parser = argparse.ArgumentParser(description="Walk rollout demo with command HUD
 parser.add_argument("--checkpoint", type=str, required=True, help="Full path to the model checkpoint.")
 parser.add_argument("--duration_s", type=float, default=18.0, help="Rollout length in seconds.")
 parser.add_argument(
+    "--task",
+    type=str,
+    default="Spidertron-Walk-Play-v0",
+    help="Play task id (must register a 'base_motion' command; 'base_height' is optional).",
+)
+parser.add_argument(
     "--diagnostics",
     action="store_true",
     default=False,
@@ -49,7 +55,6 @@ from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
-TASK = "Spidertron-Walk-Play-v0"
 UNIFORM_STD = 2.0  # frames below this pixel std are the known blank-buffer race
 CAM_OFFSET = (1.6, -1.6, 0.7)
 ARROW_LEN = 0.6  # m, world-space length of the target-direction arrow
@@ -182,15 +187,16 @@ def write_gait_diagnostics(joint_names, dt, positions, targets, torques, limits,
 
 
 def main() -> None:
-    env_cfg = load_cfg_from_registry(TASK, "env_cfg_entry_point")
-    agent_cfg = load_cfg_from_registry(TASK, "rsl_rl_cfg_entry_point")
+    env_cfg = load_cfg_from_registry(args_cli.task, "env_cfg_entry_point")
+    agent_cfg = load_cfg_from_registry(args_cli.task, "rsl_rl_cfg_entry_point")
     agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, metadata.version("rsl-rl-lib"))
 
-    env_cfg.scene.num_envs = 1
+    # keep the play cfg's env count: the chase camera follows env 0, the rest
+    # stay visible in the background
     env_cfg.episode_length_s = args_cli.duration_s + 10.0  # no timeout mid-recording
 
     video_dir = os.path.join(os.path.dirname(args_cli.checkpoint), "videos", "demo")
-    env = gym.make(TASK, cfg=env_cfg, render_mode="rgb_array")
+    env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array")
     total_steps = int(args_cli.duration_s / env.unwrapped.step_dt)
     env = gym.wrappers.RecordVideo(
         env,
@@ -206,13 +212,25 @@ def main() -> None:
     policy = runner.get_inference_policy(device=env.unwrapped.device)
 
     motion = env.unwrapped.command_manager.get_term("base_motion")
-    height_cmd = env.unwrapped.command_manager.get_term("base_height")
+    try:
+        height_cmd = env.unwrapped.command_manager.get_term("base_height")
+    except KeyError:
+        height_cmd = None  # march-style task: fixed nominal height
     robot = env.unwrapped.scene["robot"]
     origin = env.unwrapped.scene.env_origins[0]
     update_frame_marker = base_frame_marker(env.unwrapped)
     sim = env.unwrapped.sim
 
-    diag = {"pos": [], "tgt": [], "tau": []} if args_cli.diagnostics else None
+    diag = None
+    if args_cli.diagnostics:
+        diag = {"pos": [], "tgt": [], "tau": [], "contact": [], "foot_xy": [], "base_vel_b": []}
+        contact_sensor = env.unwrapped.scene.sensors["contact_forces"]
+        # sensor body ids for tibia feet, and articulation body ids (same names,
+        # different index spaces)
+        foot_names = [n for n in contact_sensor.body_names if n.endswith("_tibia")]
+        diag["foot_names"] = foot_names
+        diag["foot_ids"] = [contact_sensor.body_names.index(n) for n in foot_names]
+        diag["foot_body_ids"] = [robot.body_names.index(n) for n in foot_names]
 
     obs = env.get_observations()
     step_data = []
@@ -224,6 +242,12 @@ def main() -> None:
             diag["pos"].append(robot.data.joint_pos[0].cpu().numpy().copy())
             diag["tgt"].append(robot.data.joint_pos_target[0].cpu().numpy().copy())
             diag["tau"].append(robot.data.applied_torque[0].cpu().numpy().copy())
+            contact_sensor = env.unwrapped.scene.sensors["contact_forces"]
+            diag["contact"].append(
+                (contact_sensor.data.current_contact_time[0, diag["foot_ids"]] > 0.0).cpu().numpy().copy()
+            )
+            diag["foot_xy"].append(robot.data.body_pos_w[0, diag["foot_body_ids"], :2].cpu().numpy().copy())
+            diag["base_vel_b"].append(robot.data.root_lin_vel_b[0, :2].cpu().numpy().copy())
         pos = robot.data.root_pos_w[0]
         sim.set_camera_view(
             eye=[float(pos[0]) + CAM_OFFSET[0], float(pos[1]) + CAM_OFFSET[1], float(pos[2]) + CAM_OFFSET[2]],
@@ -239,7 +263,7 @@ def main() -> None:
                 "err": math.atan2(float(cmd[3]), float(cmd[2])),
                 "theta_t": float(motion.heading_target[0]),
                 "active": bool(motion.is_active[0]),
-                "h_cmd": float(height_cmd.command[0, 0]),
+                "h_cmd": float(height_cmd.command[0, 0]) if height_cmd is not None else 0.2745,
                 "v_act": float(robot.data.root_lin_vel_b[0, 0]),
                 "w_act": float(robot.data.root_ang_vel_b[0, 2]),
                 "h_act": float(robot.data.root_pos_w[0, 2] - origin[2]),
@@ -259,6 +283,36 @@ def main() -> None:
             limits,
             os.path.join(video_dir, "walk_gait_diagnostics.png"),
         )
+
+        # ---- translation analysis: why does the body (not) advance? --------
+        dt = env.unwrapped.step_dt
+        contact = np.asarray(diag["contact"])  # (T, 6) bool
+        foot_xy = np.asarray(diag["foot_xy"])  # (T, 6, 2) world
+        vel_b = np.asarray(diag["base_vel_b"])  # (T, 2)
+        T = contact.shape[0]
+        print(f"[transl ] mean base vel: fwd {vel_b[:, 0].mean():+.3f} m/s, lat {vel_b[:, 1].mean():+.3f} m/s")
+        print(f"{'foot':>10} {'duty%':>6} {'steps/s':>8} {'step_len_cm':>12} {'stance_drift_cm':>16}")
+        for f, name in enumerate(diag["foot_names"]):
+            c = contact[:, f]
+            duty = c.mean() * 100
+            touchdowns = np.flatnonzero(~c[:-1] & c[1:]) + 1
+            liftoffs = np.flatnonzero(c[:-1] & ~c[1:]) + 1
+            rate = len(touchdowns) / (T * dt)
+            # step length: foot displacement over each swing (liftoff -> next touchdown)
+            step_lens = []
+            for lo in liftoffs:
+                nxt = touchdowns[touchdowns > lo]
+                if len(nxt):
+                    step_lens.append(np.linalg.norm(foot_xy[nxt[0], f] - foot_xy[lo, f]))
+            # stance drift: how far the planted foot slides over each stance period
+            drifts = []
+            for td in touchdowns:
+                nxt = liftoffs[liftoffs > td]
+                if len(nxt):
+                    drifts.append(np.linalg.norm(foot_xy[nxt[0], f] - foot_xy[td, f]))
+            sl = np.mean(step_lens) * 100 if step_lens else 0.0
+            dr = np.mean(drifts) * 100 if drifts else 0.0
+            print(f"{name:>10} {duty:6.1f} {rate:8.2f} {sl:12.2f} {dr:16.2f}")
 
     env.close()
 

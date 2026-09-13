@@ -254,6 +254,57 @@ def foot_duty_deviation(
     return torch.sum(dev, dim=1) * env.command_manager.get_term(command_name).is_active
 
 
+# The two alternating-tripod sets of a hexapod gait, by leg-name prefix:
+# each tripod is a front+rear on one side plus the middle of the other.
+_TRIPOD_A = ("LF", "RM", "LR")
+_TRIPOD_B = ("RF", "LM", "RR")
+
+
+def _tripod_indices(contact_sensor: ContactSensor, body_ids) -> tuple[list[int], list[int]]:
+    names = [contact_sensor.body_names[i] for i in body_ids]
+    a = [k for k, n in enumerate(names) if n[:2] in _TRIPOD_A]
+    b = [k for k, n in enumerate(names) if n[:2] in _TRIPOD_B]
+    return a, b
+
+
+def tripod_antiphase(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, command_name: str) -> torch.Tensor:
+    """Reward anti-phase loading of the two tripod sets while moving.
+
+    ``|mean_contact(tripod A) - mean_contact(tripod B)|`` in [0, 1]: maximal
+    when one tripod is planted and the other swings (the alternating-tripod
+    gait), and exactly ZERO for the failure modes seen on flat ground -- a
+    synchronized hop (both tripods airborne) and static standing (both
+    planted) both score nothing. Dense every step; combined with the air-time
+    and duty terms, alternation over time is the only way to collect it.
+    """
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    contact = (contact_sensor.data.current_contact_time[:, sensor_cfg.body_ids] > 0.0).float()
+    a, b = _tripod_indices(contact_sensor, sensor_cfg.body_ids)
+    diff = (contact[:, a].mean(dim=1) - contact[:, b].mean(dim=1)).abs()
+    return diff * env.command_manager.get_term(command_name).is_active
+
+
+def too_many_feet_airborne(
+    env: ManagerBasedRLEnv,
+    sensor_cfg: SceneEntityCfg,
+    command_name: str,
+    max_airborne: int = 3,
+) -> torch.Tensor:
+    """Penalize more than ``max_airborne`` feet off the ground while moving.
+
+    The direct anti-hop constraint: a proper alternating-tripod gait never
+    needs more than 3 feet in flight, while a hop lifts 4-6 at once. Charged
+    per extra airborne foot per step, so a full flight phase (6 airborne)
+    costs 3x the penalty weight continuously. On rough terrain hops would be
+    selected against by falls; on flat ground this term does that job.
+    """
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    in_contact = contact_sensor.data.current_contact_time[:, sensor_cfg.body_ids] > 0.0
+    airborne = (~in_contact).sum(dim=1).float()
+    excess = torch.clamp(airborne - float(max_airborne), min=0.0)
+    return excess * env.command_manager.get_term(command_name).is_active
+
+
 def feet_off_ground_idle(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, command_name: str) -> torch.Tensor:
     """`feet_off_ground`, gated to idle envs (commanded neither moving nor turning)."""
     idle = ~env.command_manager.get_term(command_name).is_active

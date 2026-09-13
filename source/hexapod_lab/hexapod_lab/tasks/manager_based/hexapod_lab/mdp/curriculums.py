@@ -37,6 +37,23 @@ def foot_duty_metric(
     return float(reduced.mean())
 
 
+def tripod_antiphase_metric(env: ManagerBasedRLEnv, env_ids: Sequence[int], sensor_name: str) -> float:
+    """Log mean tripod anti-phase |mean_contact(A) - mean_contact(B)| (march v4).
+
+    ~0 for hopping/standing, toward 1 for a clean alternating-tripod gait.
+    Same logging channel as foot_duty_metric.
+    """
+    from .rewards import _TRIPOD_A, _TRIPOD_B
+
+    contact_sensor = env.scene.sensors[sensor_name]
+    ids = [i for i, n in enumerate(contact_sensor.body_names) if n.endswith("_tibia")]
+    names = [contact_sensor.body_names[i] for i in ids]
+    contact = (contact_sensor.data.current_contact_time[:, ids] > 0.0).float()
+    a = [k for k, n in enumerate(names) if n[:2] in _TRIPOD_A]
+    b = [k for k, n in enumerate(names) if n[:2] in _TRIPOD_B]
+    return float((contact[:, a].mean(dim=1) - contact[:, b].mean(dim=1)).abs().mean())
+
+
 def command_speed_ramp(
     env: ManagerBasedRLEnv,
     env_ids: Sequence[int],
