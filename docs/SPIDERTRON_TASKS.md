@@ -273,8 +273,27 @@ old unequal-load instinct), then monotonically bought the penalty back:
 from ~iter 650: some legs stuck near 0.2 duty, and swings remain under the
 0.15 s air-time floor (fast shallow cycles — feet_air_time −0.026).
 **Run 2** (resumed from model_999): `foot_duty` −2 → −4 and `feet_air_time`
-6 → 8 — tracking is secured and can now afford heavier gait pressure toward
-the slow-cadence solution that satisfies duty and swing length at once.
+6 → 8 — duty_min stepped up to a 0.27–0.29 plateau, but swings kept
+*shrinking* as duty rose: the two terms were structural antagonists, because
+the 0.15 s floor / 0.4 s target band sat entirely above the ~0.13–0.14 s
+swing the policy converged to in every configuration since walk v4 — the
+plant's natural cadence (cf. √(l/g) ≈ 0.17 s).
+
+**Run 3 — align the band with the revealed cadence** (floor 0.08 / target
+0.25, resumed from r2 model_1350): `feet_air_time` went positive
+immediately (earnable for the first time in nine runs) and **both gait
+channels climbed together** — duty_min 0.30 → **0.346 peak at iteration
+~1600** before drifting; stopped there. **Peak-checkpoint result
+(model_1600, archived with video + curves in docs/): duty_min 0.35 (17×
+the v9 walk's tap-dance value), duty_mean 0.59, air-time ≈ break-even,
+forward tracking 2.81/3.0 at 0.2 m/s, zero falls.** Declared a good-enough
+march; promoted to the walk port.
+
+**March → walk transfer (walk v10, in config)**: `foot_duty_deviation`
+(−4) added to the walk rewards; swing band aligned (0.08/0.25);
+`stance_progress` 0.5 → 1.0; the falsified v8 speed ramp replaced by the
+duty min/mean probes. Everything else (v9 smoothness package, contact obs,
+strict-facing command) unchanged.
 
 **v8 (as configured)**: two structural changes. (1) **Speed curriculum**
 (`mdp/curriculums.py command_speed_ramp`): command range starts 0–0.1 m/s and

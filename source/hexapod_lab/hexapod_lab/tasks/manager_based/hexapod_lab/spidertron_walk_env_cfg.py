@@ -43,13 +43,12 @@ from .spidertron_height_env_cfg import HEIGHT_RANGE
 # speed does, so start conservative and raise once tracking is real.
 MAX_SPEED = 0.3  # m/s
 MAX_YAW_RATE = 0.8  # rad/s
-# Raised 0.2 -> 0.3 (v3) -> 0.4 (v4) to push toward long deliberate strides
-# (the v1/v2 gait was a micro-hop shuffle); the STS servos (5.9 rad/s) have
-# speed budget for it. Swings under MIN_AIR_TIME cost reward -- see
-# feet_air_time_target_active. At 0.3 m/s and ~50% duty this implies ~12 cm of
-# stance travel per cycle, inside the coxa range.
-TARGET_SWING_TIME = 0.4  # s
-MIN_AIR_TIME = 0.15  # s
+# v10 (march finding): band aligned with the plant's revealed ~0.14 s natural
+# swing cadence. The v4 escalation (0.4 target / 0.15 floor) sat entirely
+# above it and made air-time fight the duty term; the aligned band let both
+# climb together on the march task (duty_min 0.35, tracking 93%).
+TARGET_SWING_TIME = 0.25  # s
+MIN_AIR_TIME = 0.08  # s
 FOOT_CLEARANCE = 0.04  # m swing-foot lift target
 
 
@@ -161,9 +160,10 @@ class WalkRewardsCfg:
     )
     # v8: pays the stride itself -- forward speed x honestly-planted feet.
     # Neither skating (feet fail slip_tol) nor standing (zero speed) collects.
+    # v10: weight 0.5 -> 1.0 (march value; the honest-stride channel earned it)
     stance_progress = RewTerm(
         func=mdp.stance_progress,
-        weight=0.5,
+        weight=1.0,
         params={
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_tibia"),
             "asset_cfg": SceneEntityCfg("robot", body_names=".*_tibia"),
@@ -202,6 +202,19 @@ class WalkRewardsCfg:
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_tibia"),
             "command_name": "base_motion",
             "max_air_time": 1.0,
+        },
+    )
+    # v10 (march finding): load coupling -- every foot's contact duty in
+    # [0.45, 0.75] while moving. The term that finally made all six legs
+    # carry load on the march task (duty_min 0.02 -> 0.35).
+    foot_duty = RewTerm(
+        func=mdp.foot_duty_deviation,
+        weight=-4.0,
+        params={
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_tibia"),
+            "command_name": "base_motion",
+            "target": 0.6,
+            "tol": 0.15,
         },
     )
     # v9 anti-dithering: prices time-at-saturation (top decile of effort) --
@@ -253,17 +266,15 @@ class WalkRewardsCfg:
 
 @configclass
 class WalkCurriculumCfg:
-    """Speed curriculum: command range 0-0.1 m/s at start, widening linearly to
-    0-MAX_SPEED by iteration ~1250 (ramp_steps = env steps = iters x 48)."""
+    """v10: the v8 speed ramp is gone (falsified -- the discovery barrier was
+    control style, not speed). This group now carries the march task's live
+    gait-structure probes instead."""
 
-    command_speed = CurrTerm(
-        func=mdp.command_speed_ramp,
-        params={
-            "command_name": "base_motion",
-            "start_speed": 0.1,
-            "end_speed": MAX_SPEED,
-            "ramp_steps": 60_000,
-        },
+    metric_foot_duty_min = CurrTerm(
+        func=mdp.foot_duty_metric, params={"sensor_name": "contact_forces", "reduce": "min"}
+    )
+    metric_foot_duty_mean = CurrTerm(
+        func=mdp.foot_duty_metric, params={"sensor_name": "contact_forces", "reduce": "mean"}
     )
 
 
@@ -307,6 +318,3 @@ class SpidertronWalkEnvCfg_PLAY(SpidertronWalkEnvCfg):
         self.scene.env_spacing = 2.0
         self.observations.policy.enable_corruption = False
         self.events.push_robot = None
-        # a fresh play env has step counter ~0 -- the ramp would cap commands
-        # at 0.1 m/s; evaluate at the full range instead
-        self.curriculum.command_speed = None
