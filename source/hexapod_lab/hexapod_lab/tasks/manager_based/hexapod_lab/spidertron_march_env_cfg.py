@@ -30,9 +30,18 @@ from . import mdp
 from .spidertron_base_env_cfg import NOMINAL_HEIGHT, SpidertronBaseEnvCfg
 from .spidertron_base_env_cfg import ObservationsCfg as BaseObservationsCfg
 from .spidertron_base_env_cfg import TerminationsCfg as BaseTerminationsCfg
-from .spidertron_walk_env_cfg import FOOT_CLEARANCE, FOOT_TIP_OFFSET, MIN_AIR_TIME, TARGET_SWING_TIME
+from .spidertron_walk_env_cfg import FOOT_CLEARANCE, FOOT_TIP_OFFSET
 
 MARCH_SPEED = 0.2  # m/s -- brisk but inside the Froude budget (max cmd was 0.3)
+
+# Run 3: align the swing-time band with the policy's revealed cadence. Across
+# every configuration (walk v4-v9, march r1-r2) the policy converges to
+# ~0.13-0.14 s swings -- the plant's natural frequency -- and the old
+# 0.15 floor / 0.4 target sat entirely above it, making air-time and duty
+# antagonists (duty gains were paid for with shrinking swings). Floor 0.08
+# still kills genuine taps; target 0.25 is earnable from the natural gait.
+MARCH_MIN_AIR_TIME = 0.08  # s
+MARCH_TARGET_SWING_TIME = 0.25  # s
 
 
 @configclass
@@ -92,8 +101,8 @@ class MarchRewardsCfg:
         params={
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_tibia"),
             "command_name": "base_motion",
-            "target_time": TARGET_SWING_TIME,
-            "min_air_time": MIN_AIR_TIME,
+            "target_time": MARCH_TARGET_SWING_TIME,
+            "min_air_time": MARCH_MIN_AIR_TIME,
         },
     )
     stance_progress = RewTerm(
