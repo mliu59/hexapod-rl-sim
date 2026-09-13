@@ -113,3 +113,10 @@ class SpidertronMarchMaxPPORunnerCfg(SpidertronMarchPPORunnerCfg):
 
     max_iterations = 2000
     experiment_name = "spidertron_march_max"
+
+
+@configclass
+class SpidertronMarchFreePPORunnerCfg(SpidertronMarchMaxPPORunnerCfg):
+    """PPO for the free-run (no gait prior) emergent-gait experiment."""
+
+    experiment_name = "spidertron_march_free"

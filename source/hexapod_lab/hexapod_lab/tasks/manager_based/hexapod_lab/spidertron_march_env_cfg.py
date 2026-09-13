@@ -237,6 +237,46 @@ class MarchMaxRewardsCfg(MarchRewardsCfg):
 
 
 @configclass
+class MarchFreeRewardsCfg:
+    """Free-run variant (emergent-gait control experiment): maximize forward
+    velocity with NO foot-contact/gait-pattern terms at all -- no tripod, no
+    duty, no air-time, no slip, no contact count. Only survival (heavy
+    termination penalty), direction, height, hardware-feasibility smoothness,
+    and basic regularizers remain. Question under test: is speed + survival
+    sufficient for a mechanically stable alternating gait to EMERGE, or was
+    the prior doing real work?"""
+
+    forward_velocity = RewTerm(func=mdp.forward_velocity, weight=5.0)
+    # "heavily penalize falling over" -- 2x the max-variant's penalty
+    termination_penalty = RewTerm(func=mdp.is_terminated, weight=-400.0)
+    track_heading = RewTerm(func=mdp.track_heading_cos, weight=1.0, params={"command_name": "base_motion"})
+    base_height_exp = RewTerm(
+        func=mdp.base_height_target_exp,
+        weight=1.0,
+        params={"target_height": NOMINAL_HEIGHT, "std": 0.05},
+    )
+
+    # hardware feasibility (not gait pattern): no dithering, no stall
+    torque_saturation = RewTerm(func=mdp.torque_saturation, weight=-5.0, params={"threshold": 0.9})
+    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.2)
+
+    # basic regularizers; keeps chassis/femur off the ground (body posture,
+    # not foot placement)
+    lat_vel_l2 = RewTerm(func=mdp.base_lin_vel_y_l2, weight=-2.0)
+    dof_torques_l2 = RewTerm(func=mdp.joint_torques_l2, weight=-2.0e-3)
+    dof_acc_l2 = RewTerm(func=mdp.joint_acc_l2, weight=-1.25e-7)
+    dof_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=-0.5)
+    undesired_contacts = RewTerm(
+        func=mdp.undesired_contacts,
+        weight=-1.0,
+        params={
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=[".*_femur", ".*_coxa"]),
+            "threshold": 1.0,
+        },
+    )
+
+
+@configclass
 class MarchTerminationsCfg(BaseTerminationsCfg):
     bad_orientation = DoneTerm(func=mdp.bad_orientation, params={"limit_angle": 1.0})
 
@@ -292,6 +332,24 @@ class SpidertronMarchMaxEnvCfg(SpidertronMarchEnvCfg):
 
 @configclass
 class SpidertronMarchMaxEnvCfg_PLAY(SpidertronMarchMaxEnvCfg):
+    def __post_init__(self):
+        super().__post_init__()
+        self.scene.num_envs = 32
+        self.scene.env_spacing = 2.0
+        self.observations.policy.enable_corruption = False
+        self.events.push_robot = None
+
+
+@configclass
+class SpidertronMarchFreeEnvCfg(SpidertronMarchMaxEnvCfg):
+    """Free-run: max speed, survival, no gait prior. Keeps the duty/tripod
+    curriculum METRICS (pure logging) so emergence is measurable."""
+
+    rewards: MarchFreeRewardsCfg = MarchFreeRewardsCfg()
+
+
+@configclass
+class SpidertronMarchFreeEnvCfg_PLAY(SpidertronMarchFreeEnvCfg):
     def __post_init__(self):
         super().__post_init__()
         self.scene.num_envs = 32
