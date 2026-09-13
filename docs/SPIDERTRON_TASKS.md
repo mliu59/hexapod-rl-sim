@@ -239,6 +239,23 @@ unlearned, tracking temporarily worse), THEN gait terms move. If v9 still
 produces no gait, v10 adds a gait phase clock (explicit prior — kept out of
 v9 so attribution stays clean).
 
+**v9 outcome — every targeted pathology fixed; walking still did not emerge**
+(run `2026-09-13_01-25-06`, stopped at ~iteration 2100 of 2500 on rollout
+review): the smoothness package worked exactly as designed — worst joint
+saturation fell 98% → ~50-60% and kept falling, action-rate cost shrank
+monotonically (−0.56 → −0.16), `feet_airborne_too_long` confirmed carried
+legs fading, `stance_progress` climbed monotonically to +0.012 (~5× v8),
+and `feet_air_time` finally **crossed zero (+0.0004 at iter 2000)** in the
+predicted smoothness-first order. But visually the policy spends its skill
+on *reorienting* (turn-in-place is crisp) while translation remains
+micro-stepped creep — technically-positive air time, no real strides. Five
+walking versions deep, the conclusion is that the full task (heading + speed
++ height + idle gating + 20 terms) has too many competing objectives to
+learn locomotion inside; reorienting alone satisfies most of the reward
+mass. **Next: isolate locomotion in a stripped-down task** (see March below)
+before returning to the full command set; gait clock still reserved as the
+following step if needed.
+
 **v8 (as configured)**: two structural changes. (1) **Speed curriculum**
 (`mdp/curriculums.py command_speed_ramp`): command range starts 0–0.1 m/s and
 widens linearly to 0–0.3 by iteration ~1250 — at low speed, stepping barely

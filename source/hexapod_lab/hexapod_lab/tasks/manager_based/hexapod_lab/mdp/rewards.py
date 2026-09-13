@@ -106,6 +106,18 @@ def track_heading_cos(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor
     return 0.5 * (1.0 + cmd[:, 2])
 
 
+def track_forward_vel_exp(env: ManagerBasedRLEnv, std: float, command_name: str) -> torch.Tensor:
+    """Track the commanded forward (base-x) speed, exp kernel, no gating.
+
+    The march-task variant of ``track_forward_vel_hgated_exp``: no height
+    attenuation (march has no height command) and no other coupling — the
+    simplest possible locomotion objective.
+    """
+    asset: Articulation = env.scene["robot"]
+    cmd = env.command_manager.get_command(command_name)
+    return torch.exp(-torch.square(cmd[:, 0] - asset.data.root_lin_vel_b[:, 0]) / std**2)
+
+
 def track_yaw_rate_exp(env: ManagerBasedRLEnv, std: float, command_name: str) -> torch.Tensor:
     """Track the heading controller's yaw-rate command (command dim 1, exp kernel)."""
     asset: Articulation = env.scene["robot"]
@@ -212,6 +224,34 @@ def feet_airborne_too_long(
     too_long = contact_sensor.data.current_air_time[:, sensor_cfg.body_ids] > max_air_time
     active = env.command_manager.get_term(command_name).is_active
     return torch.sum(too_long, dim=1).float() * active
+
+
+def foot_duty_deviation(
+    env: ManagerBasedRLEnv,
+    sensor_cfg: SceneEntityCfg,
+    command_name: str,
+    target: float = 0.6,
+    tol: float = 0.15,
+) -> torch.Tensor:
+    """Penalize per-foot contact duty factor outside [target-tol, target+tol] while moving.
+
+    The load-coupling term motivated by the v9 tap-dance exploit
+    (docs/SPIDERTRON_TASKS.md): every earlier gait term treated feet
+    independently, so the policy scuttled on two legs (duty ~55%) while four
+    decorative legs farmed the air-time reward at ~2% duty with periodic taps.
+    Duty factor -- contact time as a fraction of the last completed
+    stance+swing cycle -- makes both extremes illegal per foot: a decorative
+    leg (~0.02) and an always-planted drag leg (~1.0) both pay, and only
+    genuine load-sharing cycling (~0.45-0.75 at the defaults) is free.
+    Combined with the air-time floor (swings must also be long enough), the
+    cheapest legal strategy is an actual gait.
+    """
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    ct = contact_sensor.data.last_contact_time[:, sensor_cfg.body_ids]
+    at = contact_sensor.data.last_air_time[:, sensor_cfg.body_ids]
+    duty = ct / (ct + at + 1.0e-6)
+    dev = torch.clamp((duty - target).abs() - tol, min=0.0)
+    return torch.sum(dev, dim=1) * env.command_manager.get_term(command_name).is_active
 
 
 def feet_off_ground_idle(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, command_name: str) -> torch.Tensor:

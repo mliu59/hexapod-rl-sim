@@ -1,0 +1,220 @@
+"""March task: walk straight ahead at constant speed — locomotion isolated.
+
+Diagnostic task, built after five walk versions (docs/SPIDERTRON_TASKS.md
+iteration 3) fixed every measurable pathology (loopholes, flat kernels,
+shuffle pricing, dithering, hopping) without a real gait emerging. Hypothesis:
+the full task's competing objectives (heading + speed + height + idle mode)
+let reorienting-and-creeping absorb the reward mass. Here, everything except
+walking is amputated:
+
+* one fixed command: world +x heading, 0.15 m/s, resampled never;
+* no height command (fixed nominal), no idle envs, no curriculum;
+* spawn yaw narrowed to ±0.3 rad so episodes are walking, not turning;
+* the reward is locomotion + the v9 smoothness/honesty guards + minimal
+  regularizers — every term either drives walking or protects hardware.
+
+If a gait develops here, add the command channels back one at a time to find
+which kills it. If it does not, the reward-only approach is exhausted and the
+gait clock (v10 plan) is next. Keep this task around either way: it is the
+fastest possible A/B rig for gait-reward experiments (~2 min/100 iters).
+"""
+
+from isaaclab.managers import CurriculumTermCfg as CurrTerm
+from isaaclab.managers import ObservationTermCfg as ObsTerm
+from isaaclab.managers import RewardTermCfg as RewTerm
+from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.utils import configclass
+
+from . import mdp
+from .spidertron_base_env_cfg import NOMINAL_HEIGHT, SpidertronBaseEnvCfg
+from .spidertron_base_env_cfg import ObservationsCfg as BaseObservationsCfg
+from .spidertron_base_env_cfg import TerminationsCfg as BaseTerminationsCfg
+from .spidertron_walk_env_cfg import FOOT_CLEARANCE, FOOT_TIP_OFFSET, MIN_AIR_TIME, TARGET_SWING_TIME
+
+MARCH_SPEED = 0.2  # m/s -- brisk but inside the Froude budget (max cmd was 0.3)
+
+
+@configclass
+class CommandsCfg:
+    # constant command: face world +x, walk at MARCH_SPEED. The huge
+    # resampling window means it never changes within an episode; the heading
+    # P-controller only corrects push-induced drift.
+    base_motion = mdp.DirectionSpeedCommandCfg(
+        asset_name="robot",
+        resampling_time_range=(1.0e6, 1.0e6),
+        heading_control_stiffness=0.5,
+        max_yaw_rate=0.8,
+        rel_standing_envs=0.0,
+        debug_vis=False,
+        ranges=mdp.DirectionSpeedCommandCfg.Ranges(heading=(0.0, 0.0), speed=(MARCH_SPEED, MARCH_SPEED)),
+    )
+
+
+@configclass
+class ObservationsCfg(BaseObservationsCfg):
+    """Base proprioception + motion command + binary foot contacts (73 dims)."""
+
+    @configclass
+    class PolicyCfg(BaseObservationsCfg.PolicyCfg):
+        motion_command = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_motion"})
+        foot_contacts = ObsTerm(
+            func=mdp.foot_contacts,
+            params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_tibia")},
+        )
+
+    policy: PolicyCfg = PolicyCfg()
+
+
+@configclass
+class MarchRewardsCfg:
+    """Locomotion + v9 smoothness/honesty guards + minimal regularizers."""
+
+    # -- the objective
+    track_forward_vel = RewTerm(
+        func=mdp.track_forward_vel_exp,
+        weight=3.0,
+        params={"std": 0.5 * MARCH_SPEED, "command_name": "base_motion"},
+    )
+    track_heading = RewTerm(func=mdp.track_heading_cos, weight=1.0, params={"command_name": "base_motion"})
+    base_height_exp = RewTerm(
+        func=mdp.base_height_target_exp,
+        weight=1.0,
+        params={"target_height": NOMINAL_HEIGHT, "std": 0.05},
+    )
+
+    # -- gait (the terms under study; weights inherited from the walk task)
+    feet_air_time = RewTerm(
+        func=mdp.feet_air_time_target_active,
+        weight=6.0,
+        params={
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_tibia"),
+            "command_name": "base_motion",
+            "target_time": TARGET_SWING_TIME,
+            "min_air_time": MIN_AIR_TIME,
+        },
+    )
+    stance_progress = RewTerm(
+        func=mdp.stance_progress,
+        weight=1.0,
+        params={
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_tibia"),
+            "asset_cfg": SceneEntityCfg("robot", body_names=".*_tibia"),
+            "slip_tol": 0.05,
+        },
+    )
+    foot_clearance = RewTerm(
+        func=mdp.foot_clearance_l2,
+        weight=-5.0,
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=".*_tibia"),
+            "target_height": FOOT_CLEARANCE,
+            "tip_offset": FOOT_TIP_OFFSET,
+        },
+    )
+    foot_slip = RewTerm(
+        func=mdp.foot_slip,
+        weight=-2.0,
+        params={
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_tibia"),
+            "asset_cfg": SceneEntityCfg("robot", body_names=".*_tibia"),
+        },
+    )
+    feet_airborne_too_long = RewTerm(
+        func=mdp.feet_airborne_too_long,
+        weight=-1.0,
+        params={
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_tibia"),
+            "command_name": "base_motion",
+            "max_air_time": 1.0,
+        },
+    )
+    # load coupling (the v9 tap-dance fix): every foot's contact duty must sit
+    # in [0.45, 0.75] while moving -- decorative 2%-duty legs and two-leg
+    # scuttling both become illegal per foot
+    foot_duty = RewTerm(
+        func=mdp.foot_duty_deviation,
+        weight=-2.0,
+        params={
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_tibia"),
+            "command_name": "base_motion",
+            "target": 0.6,
+            "tol": 0.15,
+        },
+    )
+
+    # -- smoothness (the v9 wins, unchanged)
+    torque_saturation = RewTerm(func=mdp.torque_saturation, weight=-5.0, params={"threshold": 0.9})
+    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.2)
+
+    # -- stability + regularizers, minimal set
+    lat_vel_l2 = RewTerm(func=mdp.base_lin_vel_y_l2, weight=-2.0)
+    lin_vel_z_l2 = RewTerm(func=mdp.lin_vel_z_l2, weight=-0.5)
+    ang_vel_xy_l2 = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.5)
+    base_ang_acc_l2 = RewTerm(
+        func=mdp.base_ang_acc_l2,
+        weight=-2.5e-4,
+        params={"asset_cfg": SceneEntityCfg("robot", body_names="base_link")},
+    )
+    dof_torques_l2 = RewTerm(func=mdp.joint_torques_l2, weight=-2.0e-3)
+    dof_acc_l2 = RewTerm(func=mdp.joint_acc_l2, weight=-1.25e-7)
+    dof_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=-0.5)
+    undesired_contacts = RewTerm(
+        func=mdp.undesired_contacts,
+        weight=-1.0,
+        params={
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=[".*_femur", ".*_coxa"]),
+            "threshold": 1.0,
+        },
+    )
+
+
+@configclass
+class MarchTerminationsCfg(BaseTerminationsCfg):
+    bad_orientation = DoneTerm(func=mdp.bad_orientation, params={"limit_angle": 1.0})
+
+
+@configclass
+class MarchMetricsCfg:
+    """Translation probe riding the curriculum logging channel: gait-structure
+    curves in TensorBoard every iteration (see mdp.foot_duty_metric)."""
+
+    metric_foot_duty_min = CurrTerm(
+        func=mdp.foot_duty_metric, params={"sensor_name": "contact_forces", "reduce": "min"}
+    )
+    metric_foot_duty_mean = CurrTerm(
+        func=mdp.foot_duty_metric, params={"sensor_name": "contact_forces", "reduce": "mean"}
+    )
+
+
+@configclass
+class SpidertronMarchEnvCfg(SpidertronBaseEnvCfg):
+    """Spidertron marching straight ahead at constant speed."""
+
+    observations: ObservationsCfg = ObservationsCfg()
+    commands: CommandsCfg = CommandsCfg()
+    rewards: MarchRewardsCfg = MarchRewardsCfg()
+    terminations: MarchTerminationsCfg = MarchTerminationsCfg()
+    curriculum: MarchMetricsCfg = MarchMetricsCfg()
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.episode_length_s = 10.0
+        # start roughly facing the march direction: episodes should be spent
+        # walking, not demonstrating the (already-mastered) reorientation
+        self.events.reset_base.params["pose_range"]["yaw"] = (-0.3, 0.3)
+        # v9 exploration pairing (product 0.245 <= proven 0.25)
+        self.actions.joint_pos.scale = 0.35
+
+
+@configclass
+class SpidertronMarchEnvCfg_PLAY(SpidertronMarchEnvCfg):
+    """Small, deterministic version for watching rollouts."""
+
+    def __post_init__(self):
+        super().__post_init__()
+
+        self.scene.num_envs = 32
+        self.scene.env_spacing = 2.0
+        self.observations.policy.enable_corruption = False
+        self.events.push_robot = None

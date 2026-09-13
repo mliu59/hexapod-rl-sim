@@ -9,6 +9,34 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
 
+def foot_duty_metric(
+    env: ManagerBasedRLEnv,
+    env_ids: Sequence[int],
+    sensor_name: str,
+    foot_body_regex: str = ".*_tibia",
+    reduce: str = "min",
+) -> float:
+    """Log gait structure during training: per-foot duty factor, reduced over feet.
+
+    Not a curriculum -- a live translation probe riding the CurriculumManager's
+    logging channel (the one manager hook whose return value lands in
+    TensorBoard every iteration; reward-report plots pick it up post-hoc for
+    free). ``reduce='min'`` is the tap-dance detector: mean-over-envs of the
+    *least-loaded* foot's duty. Near 0 = decorative legs exist; healthy
+    six-legged cycling puts it at ~0.4+. ``reduce='mean'`` tracks the overall
+    stance/swing balance.
+    """
+    import re
+
+    contact_sensor = env.scene.sensors[sensor_name]
+    ids = [i for i, n in enumerate(contact_sensor.body_names) if re.fullmatch(foot_body_regex, n)]
+    ct = contact_sensor.data.last_contact_time[:, ids]
+    at = contact_sensor.data.last_air_time[:, ids]
+    duty = ct / (ct + at + 1.0e-6)
+    reduced = duty.min(dim=1)[0] if reduce == "min" else duty.mean(dim=1)
+    return float(reduced.mean())
+
+
 def command_speed_ramp(
     env: ManagerBasedRLEnv,
     env_ids: Sequence[int],

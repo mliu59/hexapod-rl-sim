@@ -97,3 +97,11 @@ class SpidertronWalkPPORunnerCfg(SpidertronStandPPORunnerCfg):
         # exploration joint swing (scale x std = 0.245 rad) at or below the
         # proven-survivable 0.25 x 1.0 -- see the v5 spawn-collapse post-mortem
         self.policy.init_noise_std = 0.7
+
+
+@configclass
+class SpidertronMarchPPORunnerCfg(SpidertronWalkPPORunnerCfg):
+    """PPO for the march diagnostic task -- short runs for fast A/B iteration."""
+
+    max_iterations = 1000
+    experiment_name = "spidertron_march"
