@@ -173,6 +173,47 @@ def stance_progress(
     return forward_speed * torch.sum(honest, dim=1).float()
 
 
+def torque_saturation(
+    env: ManagerBasedRLEnv,
+    threshold: float = 0.9,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Penalize joints operating near their effort limit (anti-dithering).
+
+    ``mean over joints of max(0, |tau|/limit - threshold)`` — charges only the
+    top decile of effort, the signature of the walk-v8 failure: bang-bang
+    position commands beyond servo bandwidth leave joints pinned at the torque
+    limit (RR coxa: 97.8% of steps >90% limit) while the servo low-passes the
+    thrash. ``dof_torques_l2`` cannot see this (torque magnitude is capped at
+    the limit); this term prices time-at-saturation directly. Also the
+    hardware-lethality metric: a real STS servo held at stall overheats.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    frac = asset.data.applied_torque.abs() / asset.data.joint_effort_limits.clamp(min=1e-6)
+    return torch.mean(torch.clamp(frac - threshold, min=0.0), dim=1)
+
+
+def feet_airborne_too_long(
+    env: ManagerBasedRLEnv,
+    sensor_cfg: SceneEntityCfg,
+    command_name: str,
+    max_air_time: float,
+) -> torch.Tensor:
+    """Count feet held airborne beyond ``max_air_time`` while commanded moving.
+
+    Closes the tripod-hop loophole from walk v8: `feet_off_ground` is gated to
+    idle envs and `feet_air_time`'s floor only prices *completed* swings at
+    touchdown — a leg that never lands triggers neither. This charges, every
+    step, for any foot whose CURRENT air time exceeds the cap, so carrying
+    curled legs while moving accrues cost continuously. Cap well above the
+    0.4 s target swing so honest strides never pay.
+    """
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    too_long = contact_sensor.data.current_air_time[:, sensor_cfg.body_ids] > max_air_time
+    active = env.command_manager.get_term(command_name).is_active
+    return torch.sum(too_long, dim=1).float() * active
+
+
 def feet_off_ground_idle(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, command_name: str) -> torch.Tensor:
     """`feet_off_ground`, gated to idle envs (commanded neither moving nor turning)."""
     idle = ~env.command_manager.get_term(command_name).is_active

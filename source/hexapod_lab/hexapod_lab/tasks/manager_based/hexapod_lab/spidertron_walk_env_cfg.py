@@ -81,6 +81,12 @@ class ObservationsCfg(BaseObservationsCfg):
         motion_command = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_motion"})
         height_command = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_height"})
         height_error = ObsTerm(func=mdp.height_setpoint_error, params={"command_name": "base_height"})
+        # v9: binary foot contacts (6) -- the gait rewards key on contact
+        # events, so the policy must be able to observe them
+        foot_contacts = ObsTerm(
+            func=mdp.foot_contacts,
+            params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_tibia")},
+        )
 
     policy: PolicyCfg = PolicyCfg()
 
@@ -102,18 +108,13 @@ class WalkRewardsCfg:
             "height_std": 0.09,
         },
     )
-    # v2 raised the yaw weight; v3 fixed the KERNELS -- both v2 shapes were
-    # numerically flat at the ~90 deg errors the policy actually had, so the
-    # weight multiplied a zero gradient (docs/SPIDERTRON_TASKS.md iteration 3).
-    track_yaw_rate = RewTerm(
-        func=mdp.track_yaw_rate_exp,
-        weight=2.0,
-        # std = full command range: usable slope even when not turning at all
-        params={"std": MAX_YAW_RATE, "command_name": "base_motion"},
-    )
+    # v9: merged the yaw-rate tracking term into this one (the yaw-rate command
+    # is a deterministic P-function of heading error, so the pair rewarded the
+    # same channel at two derivatives); combined weight here. Cosine kernel has
+    # gradient everywhere on the circle (v3 lesson).
     track_heading = RewTerm(
         func=mdp.track_heading_cos,
-        weight=1.5,
+        weight=2.5,
         params={"command_name": "base_motion"},
     )
     base_height_exp = RewTerm(
@@ -190,6 +191,27 @@ class WalkRewardsCfg:
             "command_name": "base_motion",
         },
     )
+    # v9 anti-hop: charges every step for feet held airborne > 1 s while
+    # moving -- the tripod-hop carried curled legs that never landed, which
+    # neither the idle-gated term above nor the touchdown-priced air-time
+    # floor could see
+    feet_airborne_too_long = RewTerm(
+        func=mdp.feet_airborne_too_long,
+        weight=-1.0,
+        params={
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_tibia"),
+            "command_name": "base_motion",
+            "max_air_time": 1.0,
+        },
+    )
+    # v9 anti-dithering: prices time-at-saturation (top decile of effort) --
+    # the v8 bang-bang style held joints at the torque limit ~95% of steps,
+    # invisible to dof_torques_l2 (magnitude is capped at the limit)
+    torque_saturation = RewTerm(
+        func=mdp.torque_saturation,
+        weight=-5.0,
+        params={"threshold": 0.9},
+    )
 
     # -- torso stability
     hip_height_variance = RewTerm(
@@ -198,7 +220,8 @@ class WalkRewardsCfg:
         weight=-100.0,
         params={"asset_cfg": SceneEntityCfg("robot", body_names=".*_coxa")},
     )
-    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-2.0)
+    # v9 audit: flat_orientation_l2 dropped -- it triple-covered orientation
+    # with hip_height_variance and ang_vel_xy_l2
     lat_vel_l2 = RewTerm(func=mdp.base_lin_vel_y_l2, weight=-2.0)
     lin_vel_z_l2 = RewTerm(func=mdp.lin_vel_z_l2, weight=-0.5)
     ang_vel_xy_l2 = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.5)
@@ -209,10 +232,14 @@ class WalkRewardsCfg:
     )
 
     # -- regularizers (v2-height-track values)
-    joint_deviation_l1 = RewTerm(func=mdp.joint_deviation_l1, weight=-0.02)
+    # v9 audit: joint_deviation_l1 dropped -- anchoring to the standing pose
+    # fights stride length and crouch/stilt poses; dof_pos_limits still guards
+    # the workspace edges
     dof_torques_l2 = RewTerm(func=mdp.joint_torques_l2, weight=-2.0e-3)
     dof_acc_l2 = RewTerm(func=mdp.joint_acc_l2, weight=-1.25e-7)
-    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.01)
+    # v9: x20 -- at -0.01 command thrash was effectively free and the policy
+    # controlled through saturation-averaged dithering (v8 post-mortem)
+    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.2)
     dof_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=-0.5)
     undesired_contacts = RewTerm(
         func=mdp.undesired_contacts,

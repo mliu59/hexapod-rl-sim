@@ -13,6 +13,18 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
 
+def foot_contacts(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Binary per-foot contact states as floats. Shape (num_envs, num_feet).
+
+    The gait rewards all key on contact events; without this the policy could
+    only infer contact from joint-velocity transients — graded on something it
+    couldn't see. Matches what real foot micro-switches would provide (the
+    sensor's single force_threshold is the one place the boolean is derived).
+    """
+    contact_sensor = env.scene.sensors[sensor_cfg.name]
+    return (contact_sensor.data.current_contact_time[:, sensor_cfg.body_ids] > 0.0).float()
+
+
 def height_setpoint_error(
     env: ManagerBasedRLEnv,
     command_name: str,

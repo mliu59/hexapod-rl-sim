@@ -212,6 +212,33 @@ quadruped could not. **v9 direction**: force smoothness first — action_rate_l2
 raised an order of magnitude and/or a dedicated torque-saturation penalty
 (the diagnostic's own metric as a term) — then re-test gait discovery.
 
+**v9 (in config)** — smoothness-first package plus a reward/obs audit, the
+largest delta of the arc because v4–v8 established the failure is structural:
+
+*Anti-dithering*: new `torque_saturation` penalty (−5, mean of
+max(0, |τ|/limit − 0.9) — prices time-at-saturation, which `dof_torques_l2`
+cannot see since magnitude caps at the limit); `action_rate_l2` −0.01 → −0.2
+(×20).
+
+*Anti-hop*: new `feet_airborne_too_long` penalty (−1 per foot per step over
+1 s of current air time, gated moving) — the tripod-hop carried legs that
+never landed, invisible to both the idle-gated feet term and the
+touchdown-priced air-time floor.
+
+*Observability*: binary foot contacts added to the policy obs (69 → 75) —
+the gait rewards key on contact events the policy previously could not see.
+
+*Audit removals*: `joint_deviation_l1` (anchors to the standing pose, fights
+stride); `flat_orientation_l2` (triple-covered orientation with
+`hip_height_variance` + `ang_vel_xy_l2`); `track_yaw_rate` merged into
+`track_heading` at 2.5 (the yaw-rate command is a deterministic P-function of
+heading error — the pair rewarded one channel at two derivatives).
+
+Expected signature: saturation/action-rate costs shrink first (dithering
+unlearned, tracking temporarily worse), THEN gait terms move. If v9 still
+produces no gait, v10 adds a gait phase clock (explicit prior — kept out of
+v9 so attribution stays clean).
+
 **v8 (as configured)**: two structural changes. (1) **Speed curriculum**
 (`mdp/curriculums.py command_speed_ramp`): command range starts 0–0.1 m/s and
 widens linearly to 0–0.3 by iteration ~1250 — at low speed, stepping barely
