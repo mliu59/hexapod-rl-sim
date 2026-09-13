@@ -170,3 +170,21 @@ later). **v7**: foot_slip −0.5 → −2.0 (skating must cost more than steppin
 air_time_variance −0.25 → −0.1 (lower the exploration tax), and stride room
 done safely — action scale 0.35 paired with init_noise_std 0.7 (exploration
 product 0.245 ≤ the proven 0.25).
+
+**v7 outcome — pricing has hit its limit** (run `2026-09-12_20-48-27`,
+stopped at ~970): `feet_air_time` went positive for the first time ever
+(+0.005 at iteration 500) then regressed to the familiar −0.009; actual foot
+sliding halved but the gait never assembled. Conclusion after three pricing
+rounds (v4/v6/v7): cost tuning moves the shuffle equilibrium but cannot
+produce the coordinated leap to a stride cycle — crossing it requires
+transiently degrading tracking, and PPO's local exploration never samples a
+full coherent stride. This is a DISCOVERY problem, not a pricing problem.
+
+**v8 (in config)**: two structural changes. (1) **Speed curriculum**
+(`mdp/curriculums.py command_speed_ramp`): command range starts 0–0.1 m/s and
+widens linearly to 0–0.3 by iteration ~1250 — at low speed, stepping barely
+disturbs tracking, so the barrier is thin; learn the gait there, carry it up.
+Disabled in the PLAY cfg (fresh env would be capped at 0.1). (2)
+**`stance_progress` reward** (+0.5): forward speed × count of feet in contact
+with world-frame speed < 5 cm/s — pays the stride itself; skating feet fail
+the slip tolerance, standing pays zero forward speed.

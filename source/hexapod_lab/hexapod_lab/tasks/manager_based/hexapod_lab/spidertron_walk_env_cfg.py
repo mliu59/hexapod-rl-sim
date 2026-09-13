@@ -22,6 +22,7 @@ Obs: 69 dims = base 63 + motion command 4 + height command 1 + height error 1.
 
 import math
 
+from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
@@ -157,6 +158,17 @@ class WalkRewardsCfg:
             "tip_offset": FOOT_TIP_OFFSET,
         },
     )
+    # v8: pays the stride itself -- forward speed x honestly-planted feet.
+    # Neither skating (feet fail slip_tol) nor standing (zero speed) collects.
+    stance_progress = RewTerm(
+        func=mdp.stance_progress,
+        weight=0.5,
+        params={
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_tibia"),
+            "asset_cfg": SceneEntityCfg("robot", body_names=".*_tibia"),
+            "slip_tol": 0.05,
+        },
+    )
     foot_slip = RewTerm(
         func=mdp.foot_slip,
         # v7: -0.5 -> -2.0 -- v6 showed the policy moving at commanded speed by
@@ -213,6 +225,22 @@ class WalkRewardsCfg:
 
 
 @configclass
+class WalkCurriculumCfg:
+    """Speed curriculum: command range 0-0.1 m/s at start, widening linearly to
+    0-MAX_SPEED by iteration ~1250 (ramp_steps = env steps = iters x 48)."""
+
+    command_speed = CurrTerm(
+        func=mdp.command_speed_ramp,
+        params={
+            "command_name": "base_motion",
+            "start_speed": 0.1,
+            "end_speed": MAX_SPEED,
+            "ramp_steps": 60_000,
+        },
+    )
+
+
+@configclass
 class WalkTerminationsCfg(BaseTerminationsCfg):
     # end hopeless rollouts early instead of collecting 12 s of a tipped robot
     bad_orientation = DoneTerm(func=mdp.bad_orientation, params={"limit_angle": 1.0})
@@ -226,6 +254,7 @@ class SpidertronWalkEnvCfg(SpidertronBaseEnvCfg):
     commands: CommandsCfg = CommandsCfg()
     rewards: WalkRewardsCfg = WalkRewardsCfg()
     terminations: WalkTerminationsCfg = WalkTerminationsCfg()
+    curriculum: WalkCurriculumCfg = WalkCurriculumCfg()
 
     def __post_init__(self):
         super().__post_init__()
@@ -251,3 +280,6 @@ class SpidertronWalkEnvCfg_PLAY(SpidertronWalkEnvCfg):
         self.scene.env_spacing = 2.0
         self.observations.policy.enable_corruption = False
         self.events.push_robot = None
+        # a fresh play env has step counter ~0 -- the ramp would cap commands
+        # at 0.1 m/s; evaluate at the full range instead
+        self.curriculum.command_speed = None

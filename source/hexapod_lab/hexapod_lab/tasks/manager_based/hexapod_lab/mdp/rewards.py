@@ -147,6 +147,32 @@ def foot_slip(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, asset_cfg: Sce
     return torch.sum(foot_speed_xy * in_contact, dim=1)
 
 
+def stance_progress(
+    env: ManagerBasedRLEnv,
+    sensor_cfg: SceneEntityCfg,
+    asset_cfg: SceneEntityCfg,
+    slip_tol: float = 0.05,
+) -> torch.Tensor:
+    """Reward forward progress carried by honestly planted feet.
+
+    ``base forward speed x count(feet in contact AND world-frame foot speed
+    below slip_tol)``. This pays for the stride itself rather than its
+    airborne byproduct: a sliding foot doesn't count (fails slip_tol), a
+    planted robot that isn't moving earns nothing (zero forward speed), and a
+    skating gait earns nothing on the feet doing the sliding. The only way to
+    collect is the thing we actually want -- translating the body over
+    stationary stance feet. Both cfgs must name the same bodies so index
+    orders match.
+    """
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    in_contact = contact_sensor.data.current_contact_time[:, sensor_cfg.body_ids] > 0.0
+    asset: Articulation = env.scene[asset_cfg.name]
+    foot_speed_xy = torch.norm(asset.data.body_lin_vel_w[:, asset_cfg.body_ids, :2], dim=-1)
+    honest = in_contact & (foot_speed_xy < slip_tol)
+    forward_speed = torch.clamp(asset.data.root_lin_vel_b[:, 0], min=0.0)
+    return forward_speed * torch.sum(honest, dim=1).float()
+
+
 def feet_off_ground_idle(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, command_name: str) -> torch.Tensor:
     """`feet_off_ground`, gated to idle envs (commanded neither moving nor turning)."""
     idle = ~env.command_manager.get_term(command_name).is_active
