@@ -6,6 +6,17 @@ exported to URDF, physically grounded in hobby-class servo limits, and trained
 with PPO across thousands of parallel simulated environments on a single
 consumer GPU.
 
+The design is an homage to [Factorio](https://www.factorio.com/)'s spidertron:
+
+![Factorio's spidertron walking through trees](docs/factorio_spidertron.gif)
+
+*(animation from the [Factorio wiki](https://wiki.factorio.com/Spidertron);
+Factorio and the spidertron are © Wube Software)*
+
+It has always been one of my favorite sprites/entities in the game, so I
+wanted to use it as the base robot for this learning project — and because
+it's not yet another biped or quadruped.
+
 ![Spidertron at nominal stance](docs/spidertron_render.png)
 
 ## Stack
