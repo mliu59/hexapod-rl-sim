@@ -256,6 +256,26 @@ mass. **Next: isolate locomotion in a stripped-down task** (see March below)
 before returning to the full command set; gait clock still reserved as the
 following step if needed.
 
+## Iteration 4 — `Spidertron-March-v0`: locomotion isolated (2026-09-13)
+
+Diagnostic task after the v9 tap-dance finding: fixed heading/speed
+(0.2 m/s), fixed height, no idle mode, ±0.3 spawn yaw, plus the
+**load-coupling** term `foot_duty_deviation` (every foot's contact duty in
+[0.45, 0.75] while moving) and live gait-structure probes
+(`Curriculum/metric_foot_duty_min|mean` — duty of the least-loaded foot is
+the tap-dance detector).
+
+**Run 1** (1000 iters / 2 h 44 min, run `2026-09-13_03-25-39`): the
+load-coupling concept works — the policy first dove to duty_min 0.04 (the
+old unequal-load instinct), then monotonically bought the penalty back:
+**duty_min 0.04 → 0.22, duty_mean centered at 0.51, stance_progress 0.050
+(4× the v9 walk's best), forward tracking 2.82/3.0, zero falls.** Plateaued
+from ~iter 650: some legs stuck near 0.2 duty, and swings remain under the
+0.15 s air-time floor (fast shallow cycles — feet_air_time −0.026).
+**Run 2** (resumed from model_999): `foot_duty` −2 → −4 and `feet_air_time`
+6 → 8 — tracking is secured and can now afford heavier gait pressure toward
+the slow-cadence solution that satisfies duty and swing length at once.
+
 **v8 (as configured)**: two structural changes. (1) **Speed curriculum**
 (`mdp/curriculums.py command_speed_ramp`): command range starts 0–0.1 m/s and
 widens linearly to 0–0.3 by iteration ~1250 — at low speed, stepping barely

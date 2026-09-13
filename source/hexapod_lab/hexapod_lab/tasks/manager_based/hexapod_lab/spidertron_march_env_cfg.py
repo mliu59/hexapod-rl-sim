@@ -86,7 +86,9 @@ class MarchRewardsCfg:
     # -- gait (the terms under study; weights inherited from the walk task)
     feet_air_time = RewTerm(
         func=mdp.feet_air_time_target_active,
-        weight=6.0,
+        # run 2: 6 -> 8, pushing the slow-cadence solution (run 1 satisfied
+        # duty with fast shallow cycles whose swings sat under the floor)
+        weight=8.0,
         params={
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_tibia"),
             "command_name": "base_motion",
@@ -134,7 +136,10 @@ class MarchRewardsCfg:
     # scuttling both become illegal per foot
     foot_duty = RewTerm(
         func=mdp.foot_duty_deviation,
-        weight=-2.0,
+        # run 2: -2 -> -4 -- run 1 plateaued at duty_min ~0.22 with tracking
+        # secured (2.8/3.0), so the auction can bear heavier load-sharing
+        # pressure
+        weight=-4.0,
         params={
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_tibia"),
             "command_name": "base_motion",
