@@ -138,7 +138,11 @@ class WalkRewardsCfg:
     )
     air_time_variance = RewTerm(
         func=mdp.air_time_variance_active,
-        weight=-0.25,
+        # v7: -0.25 -> -0.1 -- at -0.25 this was one of the largest penalties
+        # and taxed stepping EXPLORATION (irregular early steps cost variance
+        # immediately, long before a regular gait pays), helping pin the
+        # skate-shuffle equilibrium. It is a polish regularizer, not a driver.
+        weight=-0.1,
         params={
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_tibia"),
             "command_name": "base_motion",
@@ -155,7 +159,10 @@ class WalkRewardsCfg:
     )
     foot_slip = RewTerm(
         func=mdp.foot_slip,
-        weight=-0.5,
+        # v7: -0.5 -> -2.0 -- v6 showed the policy moving at commanded speed by
+        # SLIDING planted feet (slip cost -0.13/episode was cheaper than
+        # learning to step). Skating must cost more than stepping.
+        weight=-2.0,
         params={
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_tibia"),
             "asset_cfg": SceneEntityCfg("robot", body_names=".*_tibia"),
@@ -225,13 +232,12 @@ class SpidertronWalkEnvCfg(SpidertronBaseEnvCfg):
         # room for walk-stop-walk transitions within one episode (~2-3 command
         # windows per term)
         self.episode_length_s = 12.0
-        # v6: action scale stays at the base 0.25. The v5 attempt at 0.35
-        # collapsed every env at spawn (24-step episodes, 100% base-contact
-        # terminations for 300 iters): scale x init exploration std (1.0) is
-        # the early-training joint swing, and 0.35 rad yanks hard enough to
-        # drop the chassis -- the knee-saturation failure mode again. If more
-        # stride room is ever needed, pair a wider scale with a LOWER
-        # init_noise_std rather than raising the product.
+        # v7: wider stride room WITH the exploration product kept safe. v5's
+        # 0.35 scale at init_noise_std 1.0 collapsed every env at spawn
+        # (product 0.35 rad of early joint swing saturates the knees); the
+        # runner cfg pairs this 0.35 with init_noise_std 0.7 -> product 0.245,
+        # at or below the proven-survivable v4 level (0.25 x 1.0).
+        self.actions.joint_pos.scale = 0.35
 
 
 @configclass

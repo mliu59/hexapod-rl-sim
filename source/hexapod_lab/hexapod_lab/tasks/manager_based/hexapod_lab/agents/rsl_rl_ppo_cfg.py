@@ -90,3 +90,10 @@ class SpidertronWalkPPORunnerCfg(SpidertronStandPPORunnerCfg):
 
     max_iterations = 2500
     experiment_name = "spidertron_walk"
+
+    def __post_init__(self):
+        super().__post_init__()
+        # paired with the walk task's 0.35 action scale: keeps the early
+        # exploration joint swing (scale x std = 0.245 rad) at or below the
+        # proven-survivable 0.25 x 1.0 -- see the v5 spawn-collapse post-mortem
+        self.policy.init_noise_std = 0.7

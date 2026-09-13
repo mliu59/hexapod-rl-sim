@@ -157,3 +157,16 @@ what the knees survive, the same saturation mode as the spawn-height lesson.
 **v6**: scale reverted to 0.25, keeping only the `feet_air_time` weight 6.0 —
 a clean single-variable test of the weight lever. If stride room is revisited,
 widen scale only together with lower init noise (keep the product ≤ 0.25).
+
+**v6 outcome — weight lever insufficient, mechanism identified** (run
+`2026-09-12_20-07-46`, stopped at ~800): healthy training (full episodes,
+heading/yaw converging on the v4 trajectory), but `feet_air_time` flat at
+≈ −0.009 through iteration 800. The tell was in the other terms: forward
+tracking healthy (1.39) with `foot_slip` −0.13 and `air_time_variance` −0.29 —
+the policy moves by **sliding nominally-planted feet** (skating is cheaper
+than stepping at slip −0.5), while the variance penalty **taxes stepping
+exploration** (irregular early steps cost immediately, regular gait pays only
+later). **v7**: foot_slip −0.5 → −2.0 (skating must cost more than stepping),
+air_time_variance −0.25 → −0.1 (lower the exploration tax), and stride room
+done safely — action scale 0.35 paired with init_noise_std 0.7 (exploration
+product 0.245 ≤ the proven 0.25).
