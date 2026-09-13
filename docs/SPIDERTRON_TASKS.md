@@ -342,6 +342,53 @@ fall was free) — fixed with `is_terminated` −200 and speed weight 8 → 5.
 Relaunch: zero falls, ~0.4 m/s average within 200 iterations with
 antiphase ~0.65–0.68.
 
+## The speed-constraint spectrum (arc capstone, 2026-09-13)
+
+Three runs, same speed incentive, three constraint regimes:
+
+| | v6: full prior, setpoint | max2: full prior, max speed | free: no prior |
+|---|---|---|---|
+| reward for speed | exp tracking @ 0.25 m/s | linear, uncapped | linear, uncapped |
+| gait terms | all | all | **none** |
+| achieved speed | 0.25 m/s | **2.13 m/s** | ~41 m/s (unphysical) |
+| tripod antiphase | 0.93 | 0.55 | 0.13 |
+| duty (min / typical) | 0.46 / ~0.5 | 0.21 / ~0.3 | — |
+| falls | 0 | 0 | ~2% (suppressed by −400) |
+| energy audit | honest | honest | **3.3× solver injection** |
+| character | clean tripod walk | tripod-flavored run, 25–50 cm strides | contact-solver paddle-wheel |
+
+**max2 final** (run `2026-09-13_16-12-15`, 2000 iters / 1 h 37 min): 2.13 m/s
+mean — 8.5× the walking setpoint — with all six feet cycling (17–42% duty,
+3–7.5 steps/s, 24–51 cm strides), antiphase 0.55, zero falls. The fastest
+honest gait the constraint suite permits at these weights; its cost
+breakdown (contact_count −2.69, foot_duty −1.91 continuously paid) prices
+the static-stability prior at speed. Artifacts:
+docs/march_max_spidertron.mp4, march_max_gait_diagnostics.png,
+policies/spidertron_march_max_model_1999.pt. Note the first max attempt
+found a different exploit — lunge-and-fall, since early termination SAVED
+accumulated penalties — fixed by is_terminated −200.
+
+**free-run forensics** (stopped at ~500 iters; scripts/analyze_free_exploit.py):
+speed ratcheted +1.7 m/s per ~4 Hz ground-brush, linearly and unboundedly
+(41 m/s at eval, heading for the 100 m/s URDF cap). Not slamming (peak force
+only 4× bodyweight), not flight (body skims at 0.15–0.2 m): joints are
+BACKDRIVEN to 22.8 rad/s — 4× the drive's velocity limit, which caps the
+motor but not external contact — and the stiff implicit position-drive
+fighting the backdriven joint at the solver level transfers unphysical
+momentum each contact. Energy audit: KE 2916 J vs 872 J integrated actuator
+work. The dithering exploit's final form: v8 saturation-averaged position
+control; free solver-pumped propulsion.
+Artifacts: docs/march_free_exploit_spidertron.mp4, march_free_exploit_timeline.png.
+
+**Capstone lessons**: (1) the gait constraint suite is what keeps the
+optimizer inside physically-meaningful dynamics on flat ground — foot_slip/
+duty/air-time fence off exactly the solver's unphysical region (real-world
+physics polices this for free; sim reward must). (2) Never let early
+termination be profitable: price death above anything an episode can earn.
+(3) The honest speed range of this platform under the tripod prior:
+0.25–2.1 m/s, with structure degrading smoothly (antiphase 0.93 → 0.55) as
+speed rises.
+
 **March → walk transfer (walk v10, in config)**: `foot_duty_deviation`
 (−4) added to the walk rewards; swing band aligned (0.08/0.25);
 `stance_progress` 0.5 → 1.0; the falsified v8 speed ramp replaced by the
