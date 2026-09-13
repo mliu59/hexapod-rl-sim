@@ -6,11 +6,12 @@ scripts/build_robot.py`` — from the parametric model in
 Design rationale, torque sizing, and joint-limit verification:
 ``cad/DESIGN_LOG.md``.
 
-Actuators — Feetech serial-bus servos at 12 V, limits derated ~70% of stall
-(see ``cad/analysis/static_torque.py``):
+Actuators — Feetech serial-bus servos at 12 V, modeled as ``DCMotor`` (hard
+torque-speed envelope) with spec-sheet figures / 1.5 design factor on speed
+and torque; joint range exact from the URDF:
 
-* coxa yaw    : STS3215 — effort 2.06 N*m, velocity 5.38 rad/s
-* femur/knee  : STS3250 — effort 3.43 N*m, velocity 5.91 rad/s
+* coxa yaw    : STS3215 — effort 1.96 N*m, velocity 4.78 rad/s
+* femur/knee  : STS3250 — effort 3.27 N*m, velocity 5.25 rad/s
 * PD gains Kp = 25 N*m/rad, Kd = 0.5 N*m*s/rad — carried over from the
   XM430-class starting point; expect to retune for the longer legs.
 
@@ -22,16 +23,26 @@ Standing pose: coxa 0, femur -0.5236, tibia +1.8151 rad.
 from pathlib import Path
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import ImplicitActuatorCfg
+from isaaclab.actuators import DCMotorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 
 _URDF_PATH = str(Path(__file__).resolve().parents[4] / "assets" / "urdf" / "spidertron.urdf")
 
-# Feetech limits, derated (cad/analysis/static_torque.py)
-COXA_EFFORT_LIMIT = 2.06  # N*m  (STS3215, stall 2.94)
-COXA_VELOCITY_LIMIT = 5.38  # rad/s
-PITCH_EFFORT_LIMIT = 3.43  # N*m  (STS3250, stall 4.91)
-PITCH_VELOCITY_LIMIT = 5.91  # rad/s
+# Feetech spec-sheet figures (cad/analysis/static_torque.py), hard-limited in
+# sim via the DCMotor torque-speed model with a 1.5 DESIGN FACTOR on speed and
+# torque/energy (joint RANGE stays exact from the URDF). The DCMotor model is
+# the physical envelope the implicit drive lacked: torque saturates along the
+# stall->no-load line, so beyond no-load speed the servo can only brake --
+# which closes the solver energy-pumping exploit (march-free forensics: joints
+# backdriven to 22.8 rad/s past the drive's velocity limit, KE 3.3x actuator
+# work; velocity_limit_sim's PhysX clamp demonstrably leaks under contact).
+#
+# STS3215 (coxa):  stall 2.94 N*m, no-load 7.17 rad/s  -> /1.5: 1.96, 4.78
+# STS3250 (pitch): stall 4.91 N*m, no-load 7.87 rad/s  -> /1.5: 3.27, 5.25
+COXA_EFFORT_LIMIT = 1.96  # N*m  (STS3215 stall / 1.5)
+COXA_VELOCITY_LIMIT = 4.78  # rad/s (no-load / 1.5)
+PITCH_EFFORT_LIMIT = 3.27  # N*m  (STS3250 stall / 1.5)
+PITCH_VELOCITY_LIMIT = 5.25  # rad/s (no-load / 1.5)
 SERVO_STIFFNESS = 25.0  # N*m/rad
 SERVO_DAMPING = 0.5  # N*m*s/rad
 
@@ -80,16 +91,21 @@ SPIDERTRON_CFG = ArticulationCfg(
     ),
     soft_joint_pos_limit_factor=0.95,
     actuators={
-        "yaw": ImplicitActuatorCfg(
+        "yaw": DCMotorCfg(
             joint_names_expr=[".*_coxa_joint"],
-            effort_limit_sim=COXA_EFFORT_LIMIT,
+            saturation_effort=COXA_EFFORT_LIMIT,
+            effort_limit=COXA_EFFORT_LIMIT,
+            velocity_limit=COXA_VELOCITY_LIMIT,
+            # keep the leaky-but-helpful PhysX clamp as a second fence
             velocity_limit_sim=COXA_VELOCITY_LIMIT,
             stiffness=SERVO_STIFFNESS,
             damping=SERVO_DAMPING,
         ),
-        "pitch": ImplicitActuatorCfg(
+        "pitch": DCMotorCfg(
             joint_names_expr=[".*_femur_joint", ".*_tibia_joint"],
-            effort_limit_sim=PITCH_EFFORT_LIMIT,
+            saturation_effort=PITCH_EFFORT_LIMIT,
+            effort_limit=PITCH_EFFORT_LIMIT,
+            velocity_limit=PITCH_VELOCITY_LIMIT,
             velocity_limit_sim=PITCH_VELOCITY_LIMIT,
             stiffness=SERVO_STIFFNESS,
             damping=SERVO_DAMPING,
