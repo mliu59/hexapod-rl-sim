@@ -9,6 +9,25 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
 
+def _foot_ids_cached(env, contact_sensor, foot_body_regex: str) -> list[int]:
+    """Resolve foot body indices ONCE. ContactSensor.body_names materializes
+    prim paths for the whole batched view (78k strings at 4096 envs) per call;
+    doing it per step cost ~7 s/iteration before caching (march v4 post-mortem)."""
+    import re
+
+    cache = getattr(env, "_foot_ids_cache", None)
+    if cache is None:
+        cache = {}
+        env._foot_ids_cache = cache
+    if foot_body_regex not in cache:
+        names = contact_sensor.body_names
+        cache[foot_body_regex] = (
+            [i for i, n in enumerate(names) if re.fullmatch(foot_body_regex, n)],
+            [n for n in names if re.fullmatch(foot_body_regex, n)],
+        )
+    return cache[foot_body_regex]
+
+
 def foot_duty_metric(
     env: ManagerBasedRLEnv,
     env_ids: Sequence[int],
@@ -26,10 +45,8 @@ def foot_duty_metric(
     six-legged cycling puts it at ~0.4+. ``reduce='mean'`` tracks the overall
     stance/swing balance.
     """
-    import re
-
     contact_sensor = env.scene.sensors[sensor_name]
-    ids = [i for i, n in enumerate(contact_sensor.body_names) if re.fullmatch(foot_body_regex, n)]
+    ids, _ = _foot_ids_cached(env, contact_sensor, foot_body_regex)
     ct = contact_sensor.data.last_contact_time[:, ids]
     at = contact_sensor.data.last_air_time[:, ids]
     duty = ct / (ct + at + 1.0e-6)
@@ -46,8 +63,7 @@ def tripod_antiphase_metric(env: ManagerBasedRLEnv, env_ids: Sequence[int], sens
     from .rewards import _TRIPOD_A, _TRIPOD_B
 
     contact_sensor = env.scene.sensors[sensor_name]
-    ids = [i for i, n in enumerate(contact_sensor.body_names) if n.endswith("_tibia")]
-    names = [contact_sensor.body_names[i] for i in ids]
+    ids, names = _foot_ids_cached(env, contact_sensor, ".*_tibia")
     contact = (contact_sensor.data.current_contact_time[:, ids] > 0.0).float()
     a = [k for k, n in enumerate(names) if n[:2] in _TRIPOD_A]
     b = [k for k, n in enumerate(names) if n[:2] in _TRIPOD_B]

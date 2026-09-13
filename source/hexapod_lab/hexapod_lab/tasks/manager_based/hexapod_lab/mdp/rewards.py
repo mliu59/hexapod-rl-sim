@@ -260,11 +260,19 @@ _TRIPOD_A = ("LF", "RM", "LR")
 _TRIPOD_B = ("RF", "LM", "RR")
 
 
-def _tripod_indices(contact_sensor: ContactSensor, body_ids) -> tuple[list[int], list[int]]:
-    names = [contact_sensor.body_names[i] for i in body_ids]
-    a = [k for k, n in enumerate(names) if n[:2] in _TRIPOD_A]
-    b = [k for k, n in enumerate(names) if n[:2] in _TRIPOD_B]
-    return a, b
+def _tripod_indices(env, contact_sensor: ContactSensor, body_ids) -> tuple[list[int], list[int]]:
+    # CACHED on the env: ContactSensor.body_names materializes prim paths for
+    # every body in the batched view (78k strings at 4096 envs) on EVERY call
+    # -- calling it per step cost ~1 s/step and collapsed throughput 20x
+    # (march v4 post-mortem). Resolve once.
+    cache = getattr(env, "_tripod_indices_cache", None)
+    if cache is None:
+        names = [contact_sensor.body_names[i] for i in body_ids]
+        a = [k for k, n in enumerate(names) if n[:2] in _TRIPOD_A]
+        b = [k for k, n in enumerate(names) if n[:2] in _TRIPOD_B]
+        cache = (a, b)
+        env._tripod_indices_cache = cache
+    return cache
 
 
 def tripod_antiphase(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, command_name: str) -> torch.Tensor:
@@ -279,7 +287,7 @@ def tripod_antiphase(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, command
     """
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
     contact = (contact_sensor.data.current_contact_time[:, sensor_cfg.body_ids] > 0.0).float()
-    a, b = _tripod_indices(contact_sensor, sensor_cfg.body_ids)
+    a, b = _tripod_indices(env, contact_sensor, sensor_cfg.body_ids)
     diff = (contact[:, a].mean(dim=1) - contact[:, b].mean(dim=1)).abs()
     return diff * env.command_manager.get_term(command_name).is_active
 
