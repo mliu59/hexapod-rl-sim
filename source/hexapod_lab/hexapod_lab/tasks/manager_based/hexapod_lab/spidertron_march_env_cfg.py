@@ -224,7 +224,13 @@ class MarchMaxRewardsCfg(MarchRewardsCfg):
     LINEAR reward instead of setpoint tracking -- finds the fastest gait the
     tripod/honesty/smoothness constraints permit."""
 
-    forward_velocity = RewTerm(func=mdp.forward_velocity, weight=8.0)
+    # weight 8 -> 5 after the first attempt: at 8 the linear term dominated
+    # everything and the optimal policy was a 0.85 s lunge-and-fall
+    forward_velocity = RewTerm(func=mdp.forward_velocity, weight=5.0)
+    # dying must cost more than a lunge earns: without this, early termination
+    # SAVES accumulated penalties and the fall itself is free (max-variant
+    # first attempt: 100% bad_orientation terminations)
+    termination_penalty = RewTerm(func=mdp.is_terminated, weight=-200.0)
 
     def __post_init__(self):
         self.track_forward_vel = None
