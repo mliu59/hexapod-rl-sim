@@ -195,7 +195,20 @@ the visible pose is its time-average. Not intentional placement, not a
 mechanical jam — a hardware-lethal control style (a real STS servo at ~stall
 would overheat in minutes), and the real reason no pricing or curriculum
 ever produced a stride: the policy never learned smooth trajectories to
-build one from. **v9 direction**: force smoothness first — action_rate_l2
+build one from.
+
+Visually (final rollout, `walk_rollout_hud_final.mp4`), the converged
+locomotion reads as **bouncing/jumping on ~3 legs**: several legs (RR
+foremost) are held curled in the dithering tuck, and the remainder
+pogo the body forward with the dither providing the excitation. This is
+consistent with every metric at once — it tracks velocity (the hops
+average to the commanded speed), it keeps `feet_air_time` slightly
+negative (hop flights are shorter than the 0.15 s floor), it defeats
+`feet_off_ground` (that term is gated to idle envs only, and hop-contacts
+re-trigger constantly while moving), and it partially evades `foot_slip`
+(airborne feet can't slip). A three-legged pogo is also exactly the
+morphology-abuse a statically-stable hexapod can afford that a biped or
+quadruped could not. **v9 direction**: force smoothness first — action_rate_l2
 raised an order of magnitude and/or a dedicated torque-saturation penalty
 (the diagnostic's own metric as a term) — then re-test gait discovery.
 
