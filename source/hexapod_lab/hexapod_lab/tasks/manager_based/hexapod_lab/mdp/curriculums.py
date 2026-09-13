@@ -60,13 +60,12 @@ def tripod_antiphase_metric(env: ManagerBasedRLEnv, env_ids: Sequence[int], sens
     ~0 for hopping/standing, toward 1 for a clean alternating-tripod gait.
     Same logging channel as foot_duty_metric.
     """
-    from .rewards import _TRIPOD_A, _TRIPOD_B
+    from .rewards import _tripod_indices
 
     contact_sensor = env.scene.sensors[sensor_name]
-    ids, names = _foot_ids_cached(env, contact_sensor, ".*_tibia")
+    ids, _ = _foot_ids_cached(env, contact_sensor, ".*_tibia")
     contact = (contact_sensor.data.current_contact_time[:, ids] > 0.0).float()
-    a = [k for k, n in enumerate(names) if n[:2] in _TRIPOD_A]
-    b = [k for k, n in enumerate(names) if n[:2] in _TRIPOD_B]
+    a, b = _tripod_indices(env, contact_sensor, ids)
     return float((contact[:, a].mean(dim=1) - contact[:, b].mean(dim=1)).abs().mean())
 
 

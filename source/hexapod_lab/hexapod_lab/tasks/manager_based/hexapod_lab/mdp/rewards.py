@@ -254,23 +254,27 @@ def foot_duty_deviation(
     return torch.sum(dev, dim=1) * env.command_manager.get_term(command_name).is_active
 
 
-# The two alternating-tripod sets of a hexapod gait, by leg-name prefix:
-# each tripod is a front+rear on one side plus the middle of the other.
-_TRIPOD_A = ("LF", "RM", "LR")
-_TRIPOD_B = ("RF", "LM", "RR")
-
-
 def _tripod_indices(env, contact_sensor: ContactSensor, body_ids) -> tuple[list[int], list[int]]:
-    # CACHED on the env: ContactSensor.body_names materializes prim paths for
-    # every body in the batched view (78k strings at 4096 envs) on EVERY call
-    # -- calling it per step cost ~1 s/step and collapsed throughput 20x
-    # (march v4 post-mortem). Resolve once.
+    """The two alternating-tripod leg sets, derived from mount GEOMETRY.
+
+    Sort the legs by their coxa mount angle around the body and take every
+    other one: the unique 2-coloring of a leg ring with no adjacent legs in
+    the same set (up to A/B swap). This grouping is rotation-invariant and
+    direction-agnostic -- both support triangles contain the COM for travel
+    in any direction -- so it prescribes no body orientation, and the same
+    derivation works for any radially-legged morphology. (For this robot it
+    resolves to {LF, LR, RM} vs {LM, RR, RF}.)
+
+    CACHED on the env: ContactSensor.body_names materializes prim paths for
+    every body in the batched view (78k strings at 4096 envs) on EVERY call
+    -- calling it per step cost ~1 s/step and collapsed throughput 20x
+    (march v4 post-mortem). Resolve once.
+    """
     cache = getattr(env, "_tripod_indices_cache", None)
     if cache is None:
         names = [contact_sensor.body_names[i] for i in body_ids]
-        a = [k for k, n in enumerate(names) if n[:2] in _TRIPOD_A]
-        b = [k for k, n in enumerate(names) if n[:2] in _TRIPOD_B]
-        cache = (a, b)
+        order = sorted(range(len(names)), key=lambda k: _LEG_MOUNT_ANGLES[names[k][:2]])
+        cache = (order[0::2], order[1::2])
         env._tripod_indices_cache = cache
     return cache
 
