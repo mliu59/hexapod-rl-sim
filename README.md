@@ -29,7 +29,7 @@ consumer GPU.
 ## Quickstart
 
 ```powershell
-# from the env_isaaclab venv (see environment notes below)
+# from a venv with the Isaac stack installed (see environment notes below)
 python scripts\rsl_rl\train.py --task Spidertron-Stand-v0 --headless
 python scripts\rsl_rl\play.py  --task Spidertron-Stand-Play-v0 --num_envs 32
 
@@ -44,8 +44,8 @@ placeholder-robot `Hexapod-Flat-v0`.
 
 ## Environment notes
 
-Python 3.11 venv at `C:\git_ws\env_isaaclab` (Isaac Sim installed via pip,
-`torch 2.7 cu128`); this repo's extension installed editable
+Requires a Python 3.11 venv with Isaac Sim 5.1 installed via pip
+(`torch 2.7 cu128`) and this repo's extension installed editable
 (`pip install -e source\hexapod_lab`). Two hard pins: `tensordict==0.8.*`
 (newer wheels crash Kit) and an **R580-branch GPU driver** (R590+ breaks the
 RTX renderer). Always train headless. The CAD toolchain lives in its own
