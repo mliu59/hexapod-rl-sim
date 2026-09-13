@@ -296,6 +296,42 @@ def tripod_antiphase(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, command
     return diff * env.command_manager.get_term(command_name).is_active
 
 
+def tripod_contact_time_balance(
+    env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, command_name: str
+) -> torch.Tensor:
+    """Penalize unequal contact durations WITHIN each tripod group.
+
+    ``tripod_antiphase`` only constrains the group means, so the three legs of
+    a tripod could stagger arbitrarily inside their set. This charges the
+    variance of per-foot contact time within each group: zero when the three
+    legs of a tripod share the load evenly, growing when one leg does the
+    group's work. Uses completed-cycle contact times, gated on moving.
+    """
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    ct = contact_sensor.data.last_contact_time[:, sensor_cfg.body_ids]
+    a, b = _tripod_indices(env, contact_sensor, sensor_cfg.body_ids)
+    spread = ct[:, a].var(dim=1) + ct[:, b].var(dim=1)
+    return spread * env.command_manager.get_term(command_name).is_active
+
+
+def contact_count_deviation(
+    env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, command_name: str, target: int = 3
+) -> torch.Tensor:
+    """Penalize |feet in contact - target| each step while moving.
+
+    The two-sided sharpening of ``too_many_feet_airborne``: a clean
+    alternating-tripod gait keeps EXACTLY 3 feet planted, so both failure
+    directions cost -- hops/flight (<3 planted, same pricing as the old
+    one-sided cap) and drag/stand phases (4-6 planted). Handoff overlap
+    between tripods is charged too, pushing toward crisp exchanges and duty
+    near 0.5 (inside the [0.45, 0.75] duty band).
+    """
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    in_contact = contact_sensor.data.current_contact_time[:, sensor_cfg.body_ids] > 0.0
+    deviation = (in_contact.sum(dim=1).float() - float(target)).abs()
+    return deviation * env.command_manager.get_term(command_name).is_active
+
+
 def too_many_feet_airborne(
     env: ManagerBasedRLEnv,
     sensor_cfg: SceneEntityCfg,

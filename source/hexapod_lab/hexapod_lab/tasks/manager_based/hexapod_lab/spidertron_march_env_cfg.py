@@ -136,13 +136,26 @@ class MarchRewardsCfg:
             "command_name": "base_motion",
         },
     )
-    too_many_airborne = RewTerm(
-        func=mdp.too_many_feet_airborne,
+    # v5: two-sided replacement for too_many_feet_airborne -- exactly 3 feet
+    # planted is the tripod invariant; hops (<3) keep the old pricing and
+    # drag/overlap phases (4-6) now cost the same
+    contact_count = RewTerm(
+        func=mdp.contact_count_deviation,
         weight=-2.0,
         params={
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_tibia"),
             "command_name": "base_motion",
-            "max_airborne": 3,
+            "target": 3,
+        },
+    )
+    # v5: the three legs of each tripod must share contact time equally
+    # (antiphase only constrains group means; this constrains within-group)
+    tripod_balance = RewTerm(
+        func=mdp.tripod_contact_time_balance,
+        weight=-5.0,
+        params={
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_tibia"),
+            "command_name": "base_motion",
         },
     )
     foot_slip = RewTerm(
