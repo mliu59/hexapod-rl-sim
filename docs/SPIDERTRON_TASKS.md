@@ -180,7 +180,26 @@ produce the coordinated leap to a stride cycle — crossing it requires
 transiently degrading tracking, and PPO's local exploration never samples a
 full coherent stride. This is a DISCOVERY problem, not a pricing problem.
 
-**v8 (in config)**: two structural changes. (1) **Speed curriculum**
+**v8 outcome — curriculum falsified; root cause found via joint diagnostics**
+(run `2026-09-12_22-03-50`, full 2500 iters / 1 h 51 min): tracking excellent
+(fwd err 7.6 cm/s, height err 2.3 cm, heading/yaw strong, zero falls), but
+`feet_air_time` never inflected at ANY ramp speed (−0.024 at end) and
+`stance_progress` stayed marginal (+0.0025). The decisive evidence came from
+the new `--diagnostics` mode on `demo_walk_rollout.py` (per-joint
+target-vs-measured + torque saturation, prompted by a leg that looked stuck
+in the iter-600 rollout): the policy commands full-range bang-bang
+oscillations far beyond servo bandwidth — RR coxa mean tracking error
+1.06 rad with **97.8% of steps above 90% of the effort limit**. The apparent
+gait is saturation-averaged dithering: the servos low-pass the thrash, and
+the visible pose is its time-average. Not intentional placement, not a
+mechanical jam — a hardware-lethal control style (a real STS servo at ~stall
+would overheat in minutes), and the real reason no pricing or curriculum
+ever produced a stride: the policy never learned smooth trajectories to
+build one from. **v9 direction**: force smoothness first — action_rate_l2
+raised an order of magnitude and/or a dedicated torque-saturation penalty
+(the diagnostic's own metric as a term) — then re-test gait discovery.
+
+**v8 (as configured)**: two structural changes. (1) **Speed curriculum**
 (`mdp/curriculums.py command_speed_ramp`): command range starts 0–0.1 m/s and
 widens linearly to 0–0.3 by iteration ~1250 — at low speed, stepping barely
 disturbs tracking, so the barrier is thin; learn the gait there, carry it up.

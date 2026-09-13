@@ -17,6 +17,15 @@ from isaaclab.app import AppLauncher
 parser = argparse.ArgumentParser(description="Walk rollout demo with command HUD.")
 parser.add_argument("--checkpoint", type=str, required=True, help="Full path to the model checkpoint.")
 parser.add_argument("--duration_s", type=float, default=18.0, help="Rollout length in seconds.")
+parser.add_argument(
+    "--diagnostics",
+    action="store_true",
+    default=False,
+    help="Also log per-joint target-vs-measured position and torque saturation, and write a "
+    "gait-diagnostics plot. Separates 'policy intentionally holds this pose' (target tracks "
+    "measured, moderate torque) from 'joint is stalled/jammed' (large tracking error with "
+    "torque pinned at the effort limit).",
+)
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 args_cli.enable_cameras = True
@@ -114,6 +123,64 @@ def overlay_hud(frames_with_data, out_path: str) -> None:
     iio.imwrite(out_path, out_frames, fps=50, codec="libx264")
 
 
+# Okabe-Ito colorblind-safe hues, fixed leg order (never cycled)
+_LEG_ORDER = ["LF", "LM", "LR", "RF", "RM", "RR"]
+_LEG_COLORS = ["#0072B2", "#E69F00", "#009E73", "#D55E00", "#CC79A7", "#56B4E9"]
+
+
+def write_gait_diagnostics(joint_names, dt, positions, targets, torques, limits, out_path: str) -> None:
+    """Plot tracking error per leg, then target-vs-measured and torque saturation
+    for the worst-tracking leg. Printed table covers all joints."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    pos, tgt, tau = np.asarray(positions), np.asarray(targets), np.asarray(torques)
+    err = np.abs(tgt - pos)  # (T, 18)
+    sat = np.abs(tau) / limits  # (T, 18)
+    t = np.arange(pos.shape[0]) * dt
+    leg_of = [name[:2] for name in joint_names]
+
+    print(f"{'joint':>16} {'mean|err| rad':>14} {'p95|err|':>10} {'%steps sat>0.9':>15}")
+    for j, name in enumerate(joint_names):
+        print(f"{name:>16} {err[:, j].mean():14.4f} {np.percentile(err[:, j], 95):10.4f} "
+              f"{(sat[:, j] > 0.9).mean() * 100:14.1f}%")
+
+    leg_err = {leg: err[:, [j for j, lg in enumerate(leg_of) if lg == leg]].mean(axis=1) for leg in _LEG_ORDER}
+    worst = max(_LEG_ORDER, key=lambda leg: leg_err[leg].mean())
+    worst_ids = [j for j, lg in enumerate(leg_of) if lg == worst]
+
+    fig, axes = plt.subplots(3, 1, figsize=(11, 10), sharex=True)
+    for leg, color in zip(_LEG_ORDER, _LEG_COLORS):
+        axes[0].plot(t, leg_err[leg], color=color, lw=1.2, label=leg)
+    axes[0].set_ylabel("mean |target - measured| (rad)")
+    axes[0].set_title(f"Per-leg joint tracking error (worst: {worst})")
+    axes[0].legend(ncol=6, fontsize=8, frameon=False)
+
+    for j, color in zip(worst_ids, _LEG_COLORS[:3]):
+        axes[1].plot(t, pos[:, j], color=color, lw=1.4, label=f"{joint_names[j]} measured")
+        axes[1].plot(t, tgt[:, j], color=color, lw=1.0, ls="--", alpha=0.7, label=f"{joint_names[j]} target")
+    axes[1].set_ylabel("joint position (rad)")
+    axes[1].set_title(f"{worst} leg: commanded target (dashed) vs measured (solid) -- "
+                      "overlap = intentional pose, divergence = joint not reaching its target")
+    axes[1].legend(ncol=3, fontsize=7, frameon=False)
+
+    for j, color in zip(worst_ids, _LEG_COLORS[:3]):
+        axes[2].plot(t, sat[:, j], color=color, lw=1.2, label=joint_names[j])
+    axes[2].axhline(1.0, color="#888888", lw=0.8, ls=":")
+    axes[2].set_ylabel("|torque| / effort limit")
+    axes[2].set_xlabel("time (s)")
+    axes[2].set_title(f"{worst} leg torque saturation (pinned at 1.0 + tracking error = stalling)")
+    axes[2].legend(ncol=3, fontsize=8, frameon=False)
+    for ax in axes:
+        ax.grid(alpha=0.25, lw=0.5)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=110)
+    print(f"[demo   ] gait diagnostics -> {out_path}")
+
+
 def main() -> None:
     env_cfg = load_cfg_from_registry(TASK, "env_cfg_entry_point")
     agent_cfg = load_cfg_from_registry(TASK, "rsl_rl_cfg_entry_point")
@@ -145,12 +212,18 @@ def main() -> None:
     update_frame_marker = base_frame_marker(env.unwrapped)
     sim = env.unwrapped.sim
 
+    diag = {"pos": [], "tgt": [], "tau": []} if args_cli.diagnostics else None
+
     obs = env.get_observations()
     step_data = []
     for _ in range(total_steps):
         with torch.inference_mode():
             obs, _, _, _ = env.step(policy(obs))
         update_frame_marker()
+        if diag is not None:
+            diag["pos"].append(robot.data.joint_pos[0].cpu().numpy().copy())
+            diag["tgt"].append(robot.data.joint_pos_target[0].cpu().numpy().copy())
+            diag["tau"].append(robot.data.applied_torque[0].cpu().numpy().copy())
         pos = robot.data.root_pos_w[0]
         sim.set_camera_view(
             eye=[float(pos[0]) + CAM_OFFSET[0], float(pos[1]) + CAM_OFFSET[1], float(pos[2]) + CAM_OFFSET[2]],
@@ -172,6 +245,21 @@ def main() -> None:
                 "h_act": float(robot.data.root_pos_w[0, 2] - origin[2]),
             }
         )
+    if diag is not None:
+        import numpy as np
+
+        # effort limits by joint name (robots/spidertron.py: STS3215 coxa, STS3250 pitch)
+        limits = np.array([2.06 if "_coxa_" in n else 3.43 for n in robot.joint_names])
+        write_gait_diagnostics(
+            robot.joint_names,
+            env.unwrapped.step_dt,
+            diag["pos"],
+            diag["tgt"],
+            diag["tau"],
+            limits,
+            os.path.join(video_dir, "walk_gait_diagnostics.png"),
+        )
+
     env.close()
 
     import imageio.v3 as iio
