@@ -225,11 +225,13 @@ class SpidertronWalkEnvCfg(SpidertronBaseEnvCfg):
         # room for walk-stop-walk transitions within one episode (~2-3 command
         # windows per term)
         self.episode_length_s = 12.0
-        # v5: wider action range FOR THIS TASK ONLY (stand/height keep 0.25).
-        # Hypothesis from the v4 stall: 0.4 s swings need more joint-angle room
-        # per action than 0.25 rad allows, making long strides awkward to
-        # express rather than merely unrewarded.
-        self.actions.joint_pos.scale = 0.35
+        # v6: action scale stays at the base 0.25. The v5 attempt at 0.35
+        # collapsed every env at spawn (24-step episodes, 100% base-contact
+        # terminations for 300 iters): scale x init exploration std (1.0) is
+        # the early-training joint swing, and 0.35 rad yanks hard enough to
+        # drop the chassis -- the knee-saturation failure mode again. If more
+        # stride room is ever needed, pair a wider scale with a LOWER
+        # init_noise_std rather than raising the product.
 
 
 @configclass

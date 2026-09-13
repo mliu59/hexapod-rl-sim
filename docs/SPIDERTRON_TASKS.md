@@ -148,3 +148,12 @@ iterations while everything else converged. **v5 revision**: action scale
 0.25 → 0.35 rad (walk task only — hypothesis: 0.4 s swings need more
 joint-angle room per action than 0.25 rad expresses) and `feet_air_time`
 weight 4.0 → 6.0.
+
+**v5 outcome — instant collapse** (run `2026-09-12_19-52-46`, stopped at
+300): every env fell on its chassis at spawn (24-step episodes, 100%
+base_contact terminations, no recovery). Cause: action scale × init
+exploration std (1.0) is the early-training joint swing; 0.35 rad exceeds
+what the knees survive, the same saturation mode as the spawn-height lesson.
+**v6**: scale reverted to 0.25, keeping only the `feet_air_time` weight 6.0 —
+a clean single-variable test of the weight lever. If stride room is revisited,
+widen scale only together with lower init noise (keep the product ≤ 0.25).
