@@ -276,6 +276,8 @@ class WalkCurriculumCfg:
     metric_foot_duty_mean = CurrTerm(
         func=mdp.foot_duty_metric, params={"sensor_name": "contact_forces", "reduce": "mean"}
     )
+    # harness-level friction-evasion tripwire (march-free2 post-mortem)
+    metric_foot_slip = CurrTerm(func=mdp.foot_slip_metric, params={"sensor_name": "contact_forces"})
 
 
 @configclass

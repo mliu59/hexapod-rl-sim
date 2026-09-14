@@ -77,8 +77,23 @@ SPIDERTRON_CFG = ArticulationCfg(
         ),
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
             enabled_self_collisions=False,
-            solver_position_iteration_count=4,
-            solver_velocity_iteration_count=0,
+            # 4 -> 8 position, 0 -> 1 velocity (march-free2 post-mortem):
+            # velocity iterations materially improve friction convergence,
+            # and brief high-speed foot taps need it
+            solver_position_iteration_count=8,
+            solver_velocity_iteration_count=1,
+        ),
+        # Contact integrity (march-free2 friction-evasion fix): at 4-6 m/s a
+        # grazing 4 mm foot sphere touches for ~one 200 Hz step and TGS
+        # friction anchors never engage -- measured tangential force was
+        # exactly 0 on sliding loaded feet. A 2 cm contact offset generates
+        # contacts ~a full step before touch so anchors exist by impact;
+        # torsional patch radius gives the point-like sphere a finite
+        # friction patch.
+        collision_props=sim_utils.CollisionPropertiesCfg(
+            contact_offset=0.02,
+            rest_offset=0.0,
+            torsional_patch_radius=0.004,
         ),
     ),
     # Spawn at standing height: feet reach 0.2745 m below the base origin

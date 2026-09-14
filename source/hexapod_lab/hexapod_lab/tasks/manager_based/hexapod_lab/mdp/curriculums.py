@@ -54,6 +54,48 @@ def foot_duty_metric(
     return float(reduced.mean())
 
 
+def foot_slip_metric(
+    env: ManagerBasedRLEnv,
+    env_ids: Sequence[int],
+    sensor_name: str,
+    asset_name: str = "robot",
+    warn_threshold: float = 0.5,
+    warn_every_iters: int = 50,
+) -> float:
+    """Monitor loaded-foot slip speed; WARN early on friction-evasion.
+
+    Mean world-frame horizontal speed of feet currently in (binary) contact.
+    Honest stance reads near zero; the march-free2 gliding exploit read
+    3+ m/s (feet skating on contacts too brief for TGS friction anchors, with
+    measured tangential force = 0). Logged every iteration under
+    ``Curriculum/foot_slip_metric``; above ``warn_threshold`` a rate-limited
+    console warning fires so the exploit is flagged within minutes of
+    emerging instead of at rollout review.
+    """
+    contact_sensor = env.scene.sensors[sensor_name]
+    ids, names = _foot_ids_cached(env, contact_sensor, ".*_tibia")
+    in_contact = contact_sensor.data.current_contact_time[:, ids] > 0.0
+    robot = env.scene[asset_name]
+    body_ids = getattr(env, "_slip_metric_body_ids", None)
+    if body_ids is None:
+        body_ids = [robot.body_names.index(n) for n in names]
+        env._slip_metric_body_ids = body_ids
+    speed = robot.data.body_lin_vel_w[:, body_ids, :2].norm(dim=-1)
+    loaded = in_contact.sum()
+    value = float((speed * in_contact).sum() / loaded) if loaded > 0 else 0.0
+    if value > warn_threshold:
+        last = getattr(env, "_slip_warn_iter", -(10**9))
+        it = env.common_step_counter
+        if it - last > warn_every_iters * env.max_episode_length:
+            env._slip_warn_iter = it
+            print(
+                f"[monitor] WARNING: loaded-foot slip {value:.2f} m/s exceeds {warn_threshold} m/s "
+                f"-- possible friction-evasion / gliding exploit (see march-free2 post-mortem, "
+                f"scripts/analyze_free_exploit.py)"
+            )
+    return value
+
+
 def tripod_antiphase_metric(env: ManagerBasedRLEnv, env_ids: Sequence[int], sensor_name: str) -> float:
     """Log mean tripod anti-phase |mean_contact(A) - mean_contact(B)| (march v4).
 
