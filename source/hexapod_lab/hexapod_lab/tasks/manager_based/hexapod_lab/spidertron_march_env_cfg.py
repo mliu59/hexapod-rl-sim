@@ -259,19 +259,13 @@ class MarchFreeRewardsCfg:
     # hardware feasibility (not gait pattern): no dithering, no stall
     torque_saturation = RewTerm(func=mdp.torque_saturation, weight=-5.0, params={"threshold": 0.9})
     action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.2)
-    # RECLASSIFIED as a physics constraint (march-free2 post-mortem): the
-    # solver under-enforces friction on brief high-speed contacts, so sliding
-    # loaded feet are cheaper in sim than physics allows. This term is the
-    # reward-side backstop for real contact economy, alongside the sim-side
-    # contact fixes (offset, solver iterations) in robots/spidertron.py.
-    foot_slip = RewTerm(
-        func=mdp.foot_slip,
-        weight=-2.0,
-        params={
-            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_tibia"),
-            "asset_cfg": SceneEntityCfg("robot", body_names=".*_tibia"),
-        },
-    )
+    # NOTE (design principle, free3): contact honesty is enforced in the
+    # PHYSICS, not the reward -- see the contact-integrity block in
+    # robots/spidertron.py (2 cm contact offset, torsional patch, solver
+    # 8/1). A foot_slip reward term was briefly added here and removed:
+    # rewards express task preferences; physics violations get fixed in
+    # physics. The metric_foot_slip tripwire (pure monitoring) judges
+    # whether the fixes suffice.
 
     # basic regularizers; keeps chassis/femur off the ground (body posture,
     # not foot placement)
