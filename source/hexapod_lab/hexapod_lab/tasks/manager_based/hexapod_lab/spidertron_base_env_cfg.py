@@ -141,8 +141,13 @@ class EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
-            "static_friction_range": (0.6, 1.0),
-            "dynamic_friction_range": (0.4, 0.8),
+            # Rubber/TPU-foot realism (raised from 0.6-1.0 / 0.4-0.8 after
+            # free3: effective dynamic friction of 0.4-0.8 made sliding cheap
+            # and the free optimum a shuffle). Rubber on ground is mu ~1.0-1.5;
+            # higher static widens the stiction cone (feet hold under lateral
+            # load), higher dynamic prices any slide that still happens.
+            "static_friction_range": (1.0, 1.4),
+            "dynamic_friction_range": (0.8, 1.2),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 64,
         },
