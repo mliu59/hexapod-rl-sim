@@ -146,6 +146,12 @@ class EventCfg:
             # and the free optimum a shuffle). Rubber on ground is mu ~1.0-1.5;
             # higher static widens the stiction cone (feet hold under lateral
             # load), higher dynamic prices any slide that still happens.
+            # Rubber-realistic. A 400-iter A/B at +0.2 (1.2-1.6 / 1.0-1.4)
+            # showed higher friction does NOT reduce sliding -- slip was
+            # slightly HIGHER (0.89 vs 0.79 at matched age) with slightly
+            # more speed: the free-optimum shuffle uses grip for propulsion
+            # while sliding, it is not friction-price-limited. Reverted to
+            # the physically-honest rubber range.
             "static_friction_range": (1.0, 1.4),
             "dynamic_friction_range": (0.8, 1.2),
             "restitution_range": (0.0, 0.0),
