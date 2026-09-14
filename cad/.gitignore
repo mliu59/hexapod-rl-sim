@@ -1,0 +1,5 @@
+# Generated CAD artifacts — always reproducible from source
+out/
+
+# uv (uv.lock IS committed — it pins the OCCT build)
+.venv/
