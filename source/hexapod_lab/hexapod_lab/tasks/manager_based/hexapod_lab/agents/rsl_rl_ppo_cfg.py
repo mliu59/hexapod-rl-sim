@@ -132,3 +132,17 @@ class SpidertronWalkFreePPORunnerCfg(SpidertronWalkPPORunnerCfg):
 
     max_iterations = 2000
     experiment_name = "spidertron_walk_free"
+
+
+@configclass
+class SpidertronWalkFreeStablePPORunnerCfg(SpidertronWalkFreePPORunnerCfg):
+    """PPO for walk-free + wobble price. Identical training budget for a clean A/B."""
+
+    experiment_name = "spidertron_walk_free_stable"
+
+
+@configclass
+class SpidertronWalkFreeStable2PPORunnerCfg(SpidertronWalkFreePPORunnerCfg):
+    """PPO for walk-free-stable v3 (no height, yaw-free wobble price)."""
+
+    experiment_name = "spidertron_walk_free_stable2"

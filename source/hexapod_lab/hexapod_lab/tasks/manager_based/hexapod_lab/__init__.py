@@ -163,6 +163,46 @@ gym.register(
 )
 
 gym.register(
+    id="Spidertron-WalkFreeStable-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.spidertron_walk_free_stable_env_cfg:SpidertronWalkFreeStableEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:SpidertronWalkFreeStablePPORunnerCfg",
+    },
+)
+
+gym.register(
+    id="Spidertron-WalkFreeStable-Play-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.spidertron_walk_free_stable_env_cfg:SpidertronWalkFreeStableEnvCfg_PLAY",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:SpidertronWalkFreeStablePPORunnerCfg",
+    },
+)
+
+gym.register(
+    id="Spidertron-WalkFreeStable2-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.spidertron_walk_free_stable2_env_cfg:SpidertronWalkFreeStable2EnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:SpidertronWalkFreeStable2PPORunnerCfg",
+    },
+)
+
+gym.register(
+    id="Spidertron-WalkFreeStable2-Play-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.spidertron_walk_free_stable2_env_cfg:SpidertronWalkFreeStable2EnvCfg_PLAY",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:SpidertronWalkFreeStable2PPORunnerCfg",
+    },
+)
+
+gym.register(
     id="Spidertron-Stand-Play-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,

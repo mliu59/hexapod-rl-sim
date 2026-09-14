@@ -527,6 +527,19 @@ def base_ang_acc_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEnt
     return torch.sum(torch.square(asset.data.body_ang_acc_w[:, asset_cfg.body_ids].squeeze(1)), dim=-1)
 
 
+def base_ang_acc_xy_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    """``base_ang_acc_l2`` restricted to the tilt axes (world x/y).
+
+    Yaw acceleration is what turning *is* -- the heading controller demands
+    rapid yaw-rate changes, so an all-axis acceleration price taxes the task
+    itself (walk-free-stable v1/v2 lesson: heading tracking is where the wobble
+    bill bites first). Roll/pitch jitter is wobble; yaw agility is not. World
+    x/y components are the tilt axes for a nominally upright base.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    return torch.sum(torch.square(asset.data.body_ang_acc_w[:, asset_cfg.body_ids, :2].squeeze(1)), dim=-1)
+
+
 # Leg mount directions (rad, base frame, from the URDF coxa joint origins):
 # legs are radial on a perfect hexagon, so each foot's nominal planform
 # position is radius * (cos, sin) of its mount angle.

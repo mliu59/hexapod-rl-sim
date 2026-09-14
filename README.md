@@ -125,7 +125,10 @@ uv-managed venv under `cad/` and shares nothing with the Isaac stack.
 Stand, dynamic height-tracking, and consolidated command-following
 (stand/walk/height as one policy, see **Current status** above) are trained
 and visually verified; final policies incl. ONNX in
-[docs/policies/](docs/policies/). Open question: gait quality — the
-exploit-free optimum at these commands is a shuffle, and whether a cleaner
-stepping gait emerges is being probed by measurement (duty/antiphase/slip
-metrics), not reward shaping. Rough terrain (M3) is next.
+[docs/policies/](docs/policies/). The gait-quality question closed via a
+three-run wobble-pricing study (`Spidertron-WalkFreeStable2-v0`): pricing
+roll/pitch acceleration — with yaw exempt, since yaw agility *is*
+turning — turned the slide-shuffle into 23–35 cm discrete strides at
+~2 steps/s with near-ceiling command tracking
+([docs/SPIDERTRON_TASKS.md](docs/SPIDERTRON_TASKS.md) iterations 5–6).
+Rough terrain (M3) is next.

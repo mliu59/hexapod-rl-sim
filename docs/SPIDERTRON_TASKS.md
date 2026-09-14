@@ -502,3 +502,65 @@ Artifacts: run dir reports + 11 training clips;
 target-vector arrow + command HUD, model_1999). Ops note: launch runs from
 PowerShell, not Git Bash — MSYS mangles `cmd /c` into an interactive no-op
 that exits 0; verify by run dir existing, never by exit code.
+
+## Iteration 6 — the wobble-price arc: `Spidertron-WalkFreeStable-v0` / `-Stable2-v0` (2026-09-14)
+
+Question: WalkFree dropped the torso-stability block as a behavior prior —
+what does putting a price on wobble back in do to the slide-shuffle? Three
+controlled runs, one variable each. All: 4096 envs, 2000 iters, WalkFree's
+commands/obs/physics unless noted. Configs:
+`spidertron_walk_free_stable_env_cfg.py` (v1→v2 history in docstring),
+`spidertron_walk_free_stable2_env_cfg.py`.
+
+**v1 — walk-task weights verbatim** (hip_var −100, lin_vel_z/ang_vel_xy
+−0.5, base_ang_acc −2.5e-4; run `2026-09-14_11-46-53`): **froze the robot.**
+Mean base velocity 0.001 m/s, two legs held permanently airborne, vel error
+0.63 m/s, height error 14 cm (the height task effectively abandoned). The
+identical weights worked in `Spidertron-Walk-v0` only because its positive
+gait terms subsidized stepping; with no subsidy, each footfall's torso
+impulse — priced almost entirely by `base_ang_acc_l2`, −0.44/s, 10× any
+other wobble charge — beats the exp-kernel tracking gradient near
+standstill. Slip "improved" to 0.10 by not moving: **any stability metric
+can be satisfied by refusing the task.**
+
+**v2 — same terms ÷10** (run `2026-09-14_13-29-04`, resumed
+`2026-09-14_15-29-11`, stopped at model_2000 for budget parity): walking
+returns. Height 1.05 cm, slip **0.22** (free: 0.41), antiphase **0.34**
+(best of any run), all six legs cycling — the bill genuinely bought a
+cleaner gait. But heading error stuck at 2.12 rad (free: 1.00) and vel
+error 0.63 with tracking terms still climbing at cutoff: turning is the
+wobbliest maneuver, so it's where the price bites first. Also observed:
+one rollout walked 0.29 m/s carrying *both right legs* the entire 18 s —
+fewer planted feet = smaller slip/energy/wobble bills, statically stable
+on four. The idle-leg economics are real; left observed, not punished.
+
+**Stable2 — three changes** (run `2026-09-14_16-26-50`; user session):
+height task deleted entirely (march obs 73-dim, plain
+`track_forward_vel_exp`, ride height a free choice — it settled at a
+sensible stance unprompted); wobble weights halved again AND the
+acceleration term swapped to new `mdp.base_ang_acc_xy_l2` (tilt axes only —
+**yaw acceleration is what turning is**; taxing it taxes the task); sim.dt
+0.005→0.004 (125 Hz control), episodes 12→22 s (~4 command windows).
+Result — best walking policy to date: heading 2.24/2.5 ≈ free, fwd-vel
+1.86/2.0 best of any run, **strides 23–35 cm at ~2 steps/s with stance
+drift 8–11 cm** (drift/stride ~0.3; in free the ratio was ~1 — drift *was*
+the locomotion), duty_min 0.14 (no carried legs), zero falls, both
+tracking terms converged-flat by ~1200. Slip 0.35 crept back toward free's
+0.41 with the lighter price, and antiphase fell to 0.22 (irregular/wave
+coordination, not tripod).
+
+Arc lessons: (1) stability priors are walls at walk-task weights and
+bills at ÷10–÷20 — the useful range is narrow and task-dependent;
+(2) axis selection beats weight tuning — exempting yaw fixed turning
+outright where halving weights only helped; (3) removing the competing
+height objective released tracking to near-ceiling; (4) `dof_pos_limits`
+is again the only monotonically-worsening term (−0.037/s): the long
+strides graze the 95% soft band at the stride extremes — check *which*
+joint before M3, the diagnostics rollout already has per-joint data.
+
+Artifacts: three run dirs (reports rebuilt via `report_run.py` for the
+killed segments), HUD rollouts + gait diagnostics in each
+`videos/demo/`. Interactive demo app (`scripts/demo_walkfree_app.py`,
+committed 7effe51) still drives the *WalkFree* policy; Stable2's 73-dim
+obs / no height channel needs a small adaptation if it becomes the demo
+policy.
