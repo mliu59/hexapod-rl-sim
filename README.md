@@ -19,6 +19,35 @@ it's not yet another biped or quadruped.
 
 ![Spidertron at nominal stance](docs/spidertron_render.png)
 
+## Current status
+
+One consolidated policy (`Spidertron-WalkFree-v0`) covers stand, walk, and
+height tracking as regions of a single command space — no locomotion modes, no
+hand-designed gait rewards. Below: the policy driven live from the interactive
+browser demo app (`scripts/demo_walkfree_app.py`), commanded through a
+world-frame velocity joystick and a height slider.
+
+| Fixed camera | Chase camera |
+| --- | --- |
+| ![WalkFree policy, fixed camera](docs/media/demo_fixed_cam.gif) | ![WalkFree policy, chase camera](docs/media/demo_chase_cam.gif) |
+
+- **Task**: track a world-frame heading + speed command (0–1.7 m/s, with an
+  internal heading controller emitting yaw-rate — the robot turns to face its
+  target, no strafing) and a base-height setpoint (0.18–0.35 m).
+  Observations are blind proprioception + the commands + binary foot
+  contacts; control is 100 Hz position targets on 18 joints.
+- **Environment**: Isaac Lab manager-based env on flat ground, physics
+  grounded in hobby-servo reality — Feetech STS-class DCMotor torque/speed
+  envelopes, rubber-foot friction, and contact-integrity fixes so the
+  optimizer can't exploit simulator seams
+  ([docs/SIM_PHYSICS_EXPLOITS.md](docs/SIM_PHYSICS_EXPLOITS.md)).
+- **Training**: RSL-RL PPO, 4096 parallel envs, ~35 min on one RTX 4070 Ti.
+  Rewards are three tracking terms + a termination penalty + hardware
+  feasibility costs (torque saturation, joint limits, action rate, positive
+  mechanical power as an energy bill). Gait structure is measured, never
+  rewarded: the resulting gait is an honest, friction-limited shuffle —
+  velocity error ~0.15 m/s, height error ~1 cm, falls in 0.3% of episodes.
+
 ## Stack
 
 - **Robot**: parametric CAD model ([cad/](cad/)) → generated URDF + meshes
@@ -47,11 +76,27 @@ python scripts\rsl_rl\play.py  --task Spidertron-Stand-Play-v0 --num_envs 32
 # scripted-setpoint demos for trained policies
 python scripts\demo_height_staircase.py --headless --checkpoint <model.pt>
 python scripts\demo_walk_rollout.py     --headless --checkpoint <model.pt>
+
+# interactive demo app (browser UI for the WalkFree policy)
+python scripts\demo_walkfree_app.py --headless
 ```
 
 Registered tasks: `Spidertron-Stand-v0`, `Spidertron-HeightTrack-v0`,
-`Spidertron-Walk-v0` (each with a `-Play-v0` variant), plus the earlier
-placeholder-robot `Hexapod-Flat-v0`.
+`Spidertron-Walk-v0`, `Spidertron-WalkFree-v0` (each with a `-Play-v0`
+variant), plus the earlier placeholder-robot `Hexapod-Flat-v0`.
+
+### Interactive demo app
+
+`scripts/demo_walkfree_app.py` runs the trained WalkFree policy on one robot
+and serves a local web UI at `http://127.0.0.1:8765`: the main pane streams
+the live sim render (fixed wide view or a chase camera), the sidebar has a
+world-frame velocity joystick (hold-last-command), a height slider,
+stop/reset, and command-vs-actual telemetry. UI commands are written directly
+into the task's own command terms each step, so the policy sees exactly the
+interface it was trained on. Runs in real time (~100 Hz control) by defaulting
+to CPU physics — the GPU pipeline is launch-bound at ~20 ms/step regardless of
+env count, while one robot steps in ~7 ms on CPU. Details and tuning flags in
+the script docstring.
 
 ## Environment notes
 
@@ -77,9 +122,10 @@ uv-managed venv under `cad/` and shares nothing with the Isaac stack.
 
 ## Progress
 
-Stand and dynamic height-tracking are trained, visually verified, and
-committed (millimeter steady-state, sub-0.3 s settling on setpoint steps;
-final policy incl. ONNX in [docs/policies/](docs/policies/)). Commanded
-walking (heading + speed + height) is mid-development: heading and turn-rate
-tracking converge; gait quality is the open question, iterating on reward
-shaping. Rough terrain is next.
+Stand, dynamic height-tracking, and consolidated command-following
+(stand/walk/height as one policy, see **Current status** above) are trained
+and visually verified; final policies incl. ONNX in
+[docs/policies/](docs/policies/). Open question: gait quality — the
+exploit-free optimum at these commands is a shuffle, and whether a cleaner
+stepping gait emerges is being probed by measurement (duty/antiphase/slip
+metrics), not reward shaping. Rough terrain (M3) is next.
