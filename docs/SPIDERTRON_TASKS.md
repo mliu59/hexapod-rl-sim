@@ -342,6 +342,11 @@ fall was free) — fixed with `is_terminated` −200 and speed weight 8 → 5.
 Relaunch: zero falls, ~0.4 m/s average within 200 iterations with
 antiphase ~0.65–0.68.
 
+> The full contact-physics / exploit / gait-emergence exploration that grew
+> out of this arc — free1–free4b, the fixes, the measurement lessons, and
+> the enforcement-stack reference — is consolidated in
+> [SIM_PHYSICS_EXPLOITS.md](SIM_PHYSICS_EXPLOITS.md).
+
 ## The speed-constraint spectrum (arc capstone, 2026-09-13)
 
 Three runs, same speed incentive, three constraint regimes:

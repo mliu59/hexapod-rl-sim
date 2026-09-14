@@ -67,6 +67,10 @@ uv-managed venv under `cad/` and shares nothing with the Isaac stack.
 - [INTRO.md](INTRO.md) — full project plan and phase definitions
 - [docs/SPIDERTRON_TASKS.md](docs/SPIDERTRON_TASKS.md) — per-task results,
   videos, trained policies, and reward-design post-mortems
+- [docs/SIM_PHYSICS_EXPLOITS.md](docs/SIM_PHYSICS_EXPLOITS.md) — the contact
+  physics / simulator-exploit exploration: how an unconstrained speed
+  optimizer found (and we closed) the simulator's seams, and what that says
+  about where gait structure comes from
 - [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md) — the training observability
   scaffold
 - [cad/README.md](cad/README.md) — CAD pipeline
