@@ -120,3 +120,15 @@ class SpidertronMarchFreePPORunnerCfg(SpidertronMarchMaxPPORunnerCfg):
     """PPO for the free-run (no gait prior) emergent-gait experiment."""
 
     experiment_name = "spidertron_march_free"
+
+
+@configclass
+class SpidertronWalkFreePPORunnerCfg(SpidertronWalkPPORunnerCfg):
+    """PPO for the consolidated walk-free task (no gating, no gait terms).
+
+    Inherits the walk runner's init_noise_std 0.7 pairing with the task's
+    0.35 action scale.
+    """
+
+    max_iterations = 2000
+    experiment_name = "spidertron_walk_free"

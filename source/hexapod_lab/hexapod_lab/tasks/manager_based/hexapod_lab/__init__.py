@@ -143,6 +143,26 @@ gym.register(
 )
 
 gym.register(
+    id="Spidertron-WalkFree-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.spidertron_walk_free_env_cfg:SpidertronWalkFreeEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:SpidertronWalkFreePPORunnerCfg",
+    },
+)
+
+gym.register(
+    id="Spidertron-WalkFree-Play-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.spidertron_walk_free_env_cfg:SpidertronWalkFreeEnvCfg_PLAY",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:SpidertronWalkFreePPORunnerCfg",
+    },
+)
+
+gym.register(
     id="Spidertron-Stand-Play-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,

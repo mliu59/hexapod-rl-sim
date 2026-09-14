@@ -219,6 +219,33 @@ def torque_saturation(
     return torch.mean(torch.clamp(frac - threshold, min=0.0), dim=1)
 
 
+def joint_power_positive(
+    env: ManagerBasedRLEnv,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Positive mechanical power drawn by the actuators, in watts.
+
+    ``sum over joints of max(0, tau * qdot)`` -- the mechanical half of the
+    DC-servo electrical bill (``dof_torques_l2`` is the tau^2 R heating half).
+    Clamped at zero per joint because STS servos do not regenerate: braking
+    work must not earn credit, and unclamped tau*qdot would let the policy
+    mine negative work from contact.
+
+    The walk-free task's energy term. Does two jobs without mode gating:
+    at zero commanded speed, genuine standing is nearly free (holding torques
+    0.06-0.4 N*m at qdot ~ 0) while fidgeting shows up directly, so stillness
+    is the energy optimum; in motion, loaded dragging pays the Coulomb bill
+    (free4b: mu +0.2 raised mean actuator power 24.8 -> 39.7 W at unchanged
+    slide) that a stepping gait avoids. Keep the weight a bill, not a wall
+    (~3e-3/W): early stepping exploration costs energy before it pays, and
+    overpricing it re-pins the shuffle equilibrium the same way
+    air_time_variance at -0.25 did (v7 post-mortem).
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    power = asset.data.applied_torque * asset.data.joint_vel
+    return torch.sum(torch.clamp(power, min=0.0), dim=1)
+
+
 def feet_airborne_too_long(
     env: ManagerBasedRLEnv,
     sensor_cfg: SceneEntityCfg,

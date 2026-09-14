@@ -451,3 +451,54 @@ Disabled in the PLAY cfg (fresh env would be capped at 0.1). (2)
 **`stance_progress` reward** (+0.5): forward speed × count of feet in contact
 with world-frame speed < 5 cm/s — pays the stride itself; skating feet fail
 the slip tolerance, standing pays zero forward speed.
+
+## Iteration 5 — `Spidertron-WalkFree-v0`: consolidation after the free arc (2026-09-14)
+
+The walk task rebuilt from the free-run conclusions
+([SIM_PHYSICS_EXPLOITS.md](SIM_PHYSICS_EXPLOITS.md)): physics enforcement
+untouched, and the reward stripped to task + survival + hardware — no gait
+terms, **no mode gating** (the gated terms existed to protect gait rewards
+across command modes; with the gait suite deleted, nothing is
+mode-dependent — speed-tracking at command 0 *is* the stand task, and
+`rel_standing_envs` 0.1 survives only as command sampling). One policy
+covers stand / walk / height-change as regions of a single command space.
+Config: `spidertron_walk_free_env_cfg.py` (design log in its docstring).
+
+Definition decisions (user session 2026-09-14):
+
+* commands: walk's heading ±π + height 0.18–0.35 m, speed widened
+  0 → **1.7 m/s** — capped at free3's demonstrated shuffle ceiling so every
+  command is physically satisfiable (2.1, the constrained-gait max, is the
+  reserved emergence lever);
+* dropped as behavior priors: fixed-height nominal (replaced by the height
+  command), `lat_vel_l2`, `hip_height_variance`, and the whole ride-quality
+  block (`lin_vel_z`, `ang_vel_xy`, `base_ang_acc`);
+* added `joint_power_positive` (−3e-3/W, positive mechanical work,
+  clamped — STS servos don't regen): makes stillness the energy optimum at
+  command 0 *without gating*, and prices the shuffle's Coulomb dragging
+  bill (free4b: ~15 J/m). Deliberately a bill, not a wall — overpricing
+  movement re-pins the shuffle (v7 air_time_variance lesson);
+* tracking kernel std fixed at 0.3 m/s, NOT 0.5×max (0.85 would be
+  gradient-free mush); `is_terminated` −400.
+
+**Run `2026-09-14_00-58-29`** (4096 envs, 2000 iters / 1 h 27 min, VRAM
+peak 8.15 GB with per-200-iter video capture, 80k steps/s): the task
+converges cleanly — vel error 0.15 m/s over the full 0–1.7 range, height
+1.1 cm, heading 89% of ceiling, falls 0.3%, torque saturation and
+termination penalty flat zero. Gait character as free3 predicted:
+**command-following slide-shuffle** — antiphase 0.30 (v6 tripod: 0.93),
+duty_min 0.065 (decorative legs legal again), slip 0.41 m/s. Two notes:
+(1) slip is well under free3's 0.93 — the setpoint objective + energy bill
+restrain the slide even though nothing names it; mean draw ~30 W, flat
+across training while speed tracking improved. (2) `dof_pos_limits` is the
+only monotonically worsening term (−0.039/s and climbing at 2000): with
+gait terms gone, the *joint workspace* is what binds — remember this before
+re-tuning rewards. Verdict: the intended consolidated baseline — first
+single-policy stand/walk/height network, honest physics, mediocre gait.
+Emergence levers deliberately left on the table: speed cap → 2.1, terrain.
+
+Artifacts: run dir reports + 11 training clips;
+`videos/demo/walk_rollout_hud.mp4` (chase camera, base-frame axes,
+target-vector arrow + command HUD, model_1999). Ops note: launch runs from
+PowerShell, not Git Bash — MSYS mangles `cmd /c` into an interactive no-op
+that exits 0; verify by run dir existing, never by exit code.

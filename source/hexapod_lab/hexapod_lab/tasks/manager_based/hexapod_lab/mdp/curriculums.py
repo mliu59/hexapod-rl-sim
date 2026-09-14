@@ -111,6 +111,33 @@ def tripod_antiphase_metric(env: ManagerBasedRLEnv, env_ids: Sequence[int], sens
     return float((contact[:, a].mean(dim=1) - contact[:, b].mean(dim=1)).abs().mean())
 
 
+def terrain_levels_progress(
+    env: ManagerBasedRLEnv,
+    env_ids: Sequence[int],
+    min_distance: float = 1.5,
+) -> float:
+    """Terrain curriculum on distance walked, for tasks without a velocity setpoint.
+
+    Isaac Lab's ``terrain_levels_vel`` derives its demotion threshold from the
+    commanded velocity of a ``base_velocity`` command term; the free task has
+    no speed setpoint (linear forward-velocity reward, ``DirectionSpeedCommand``
+    pinned to "go fast"), so thresholds are absolute instead: promote envs that
+    crossed half a terrain tile, demote envs that covered less than
+    ``min_distance`` over the episode. Returns the mean terrain level
+    (``Curriculum/terrain_levels_progress`` in TensorBoard — the emergence
+    experiment's primary progress axis).
+    """
+    import torch
+
+    asset = env.scene["robot"]
+    terrain = env.scene.terrain
+    distance = torch.norm(asset.data.root_pos_w[env_ids, :2] - env.scene.env_origins[env_ids, :2], dim=1)
+    move_up = distance > terrain.cfg.terrain_generator.size[0] / 2
+    move_down = (distance < min_distance) & ~move_up
+    terrain.update_env_origins(env_ids, move_up, move_down)
+    return float(terrain.terrain_levels.float().mean())
+
+
 def command_speed_ramp(
     env: ManagerBasedRLEnv,
     env_ids: Sequence[int],
