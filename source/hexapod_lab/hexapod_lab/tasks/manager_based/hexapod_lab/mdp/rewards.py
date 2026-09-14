@@ -367,6 +367,28 @@ def too_many_feet_airborne(
     return excess * env.command_manager.get_term(command_name).is_active
 
 
+def brief_contacts(
+    env: ManagerBasedRLEnv,
+    sensor_cfg: SceneEntityCfg,
+    min_contact_time: float = 0.1,
+) -> torch.Tensor:
+    """Penalize contacts that end before ``min_contact_time`` (hardware realism).
+
+    Charged once per completed contact, at lift-off, proportional to how far
+    short of the floor the stance was. Rationale: tap contacts on real
+    hardware mean impulse loading through the gear train, foot wear, and
+    vibration -- behavior to engineer away even with perfect physics. Also
+    starves timestep-scale contact exploits (the free2 gliding gait lived on
+    ~5 ms grazing taps) of their contact pattern, from the hardware-preference
+    side of the reward/physics split rather than as a solver patch.
+    """
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    first_air = contact_sensor.compute_first_air(env.step_dt)[:, sensor_cfg.body_ids]
+    last_contact_time = contact_sensor.data.last_contact_time[:, sensor_cfg.body_ids]
+    shortfall = torch.clamp(min_contact_time - last_contact_time, min=0.0) * first_air
+    return torch.sum(shortfall, dim=1)
+
+
 def feet_off_ground_idle(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, command_name: str) -> torch.Tensor:
     """`feet_off_ground`, gated to idle envs (commanded neither moving nor turning)."""
     idle = ~env.command_manager.get_term(command_name).is_active

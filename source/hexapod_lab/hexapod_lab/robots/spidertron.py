@@ -86,12 +86,16 @@ SPIDERTRON_CFG = ArticulationCfg(
         # Contact integrity (march-free2 friction-evasion fix): at 4-6 m/s a
         # grazing 4 mm foot sphere touches for ~one 200 Hz step and TGS
         # friction anchors never engage -- measured tangential force was
-        # exactly 0 on sliding loaded feet. A 2 cm contact offset generates
-        # contacts ~a full step before touch so anchors exist by impact;
-        # torsional patch radius gives the point-like sphere a finite
-        # friction patch.
+        # exactly 0 on sliding loaded feet. The contact offset generates
+        # contacts BEFORE touch so anchors exist by impact: 3 cm covers a
+        # full 200 Hz step even at 6 m/s foot speed. Statics are unaffected
+        # (rest_offset governs resting geometry; early contacts are
+        # speculative and only apply force if the step would penetrate).
+        # Revisit on M3 rough terrain: large offsets can graze near-miss
+        # geometry. Torsional patch radius gives the point-like sphere a
+        # finite friction patch.
         collision_props=sim_utils.CollisionPropertiesCfg(
-            contact_offset=0.02,
+            contact_offset=0.03,
             rest_offset=0.0,
             torsional_patch_radius=0.004,
         ),

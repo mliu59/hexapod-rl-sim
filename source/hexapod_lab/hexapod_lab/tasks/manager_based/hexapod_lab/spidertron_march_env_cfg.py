@@ -256,9 +256,21 @@ class MarchFreeRewardsCfg:
         params={"target_height": NOMINAL_HEIGHT, "std": 0.05},
     )
 
-    # hardware feasibility (not gait pattern): no dithering, no stall
+    # hardware feasibility (not gait pattern): no dithering, no stall, and no
+    # tap contacts (impulse loading / foot wear on real servos; charged per
+    # completed contact shorter than 0.1 s at lift-off). The tap penalty also
+    # starves timestep-scale contact exploits of their pattern -- a hardware
+    # preference that doubles as defense in depth.
     torque_saturation = RewTerm(func=mdp.torque_saturation, weight=-5.0, params={"threshold": 0.9})
     action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.2)
+    brief_contacts = RewTerm(
+        func=mdp.brief_contacts,
+        weight=-10.0,
+        params={
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_tibia"),
+            "min_contact_time": 0.1,
+        },
+    )
     # NOTE (design principle, free3): contact honesty is enforced in the
     # PHYSICS, not the reward -- see the contact-integrity block in
     # robots/spidertron.py (2 cm contact offset, torsional patch, solver
