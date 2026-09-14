@@ -380,6 +380,27 @@ work. The dithering exploit's final form: v8 saturation-averaged position
 control; free solver-pumped propulsion.
 Artifacts: docs/march_free_exploit_spidertron.mp4, march_free_exploit_timeline.png.
 
+**Free rerun under honest actuators (free2, run `2026-09-13_19-07-11`)**:
+with the DCMotor envelope closing the energy exploit, the same
+no-gait-terms reward was retried. Early training looked like emergent
+bounding (all six feet at even 16–29% duty, 1.8 m/s, zero falls at iter
+200), but by ~600 the policy crossed the kinematic stance bound and the
+user identified gliding in rollouts. The extended contact audit (slip
+speed + tangential/normal force ratio on loaded feet, added to
+scripts/analyze_free_exploit.py) confirmed a SECOND exploit, one layer
+deeper: **loaded feet slide at 3.3 m/s mean with measured tangential
+force = 0.00** — brief grazing taps of the 4 mm foot spheres last ~one
+200 Hz physics step, too short for TGS friction anchors to engage, so
+sliding contacts are effectively frictionless and the policy built a
+skating gait on the discretization artifact. Energy audit PASSES
+(41 W, actuator-explainable) while contact physics is violated —
+global energy honesty and contact honesty are independent axes, and
+audits need both. Exploit hierarchy: free1 harvested solver ENERGY
+(fixed by DCMotor); free2, energy-honest, evaded FRICTION.
+Fair-rerun fixes if ever wanted: smaller dt / more solver iterations,
+larger foot contact offset, persistent-contact foot geometry — or
+concede that foot_slip is a physics-enforcement term, not a gait term.
+
 **Capstone lessons**: (1) the gait constraint suite is what keeps the
 optimizer inside physically-meaningful dynamics on flat ground — foot_slip/
 duty/air-time fence off exactly the solver's unphysical region (real-world
