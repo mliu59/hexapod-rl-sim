@@ -401,6 +401,28 @@ Fair-rerun fixes if ever wanted: smaller dt / more solver iterations,
 larger foot contact offset, persistent-contact foot geometry — or
 concede that foot_slip is a physics-enforcement term, not a gait term.
 
+**Free v3 — the fair experiment at last** (run `2026-09-13_22-07-51`,
+2000 iters / 1 h 23 min): contact honesty moved into PHYSICS (3 cm
+speculative contact offset so friction anchors precede touch even at
+6 m/s, torsional patch on the point feet, solver 8/1) plus the DCMotor
+energy envelope; rewards stay preference-only (brief_contacts −10 as a
+hardware wear penalty on sub-0.1 s taps; NO foot_slip term). The new
+metric_foot_slip tripwire monitored throughout (fired once at its
+untrained-baseline threshold, never escalated). Mid-run, a control
+audit of the honest v6 walker exposed that the free2 "tangential
+force = 0" evidence was a MEASUREMENT ARTIFACT (net_forces_w does not
+report friction; the walker also read 0) — the analyzer was
+recalibrated against the control (honest walk slip 0.20 m/s, free2
+exploit 3.3). **Result: with nothing to exploit, speed+survival
+converges to a modest unstructured sliding shuffle — 1.7 m/s, slip
+0.93 m/s (gray zone, energy-paid: 25 W actuator power fully accounts),
+no phase structure (antiphase 0.10), zero falls, taps avoided.** No
+gait emerges, and no impressive speed either: the exploit-free free
+optimum is mediocre on every axis. Emergent-gait question closed:
+structure comes from the task prior, not from speed pressure.
+Artifacts: docs/march_free3_spidertron.mp4,
+policies/spidertron_march_free3_model_1999.pt.
+
 **Capstone lessons**: (1) the gait constraint suite is what keeps the
 optimizer inside physically-meaningful dynamics on flat ground — foot_slip/
 duty/air-time fence off exactly the solver's unphysical region (real-world
